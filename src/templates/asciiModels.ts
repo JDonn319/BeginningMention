@@ -2,7 +2,6 @@
 // БИБЛИОТЕКА МОДЕЛЕЙ (BEGINNING MENTION)
 // ========================================================
 
-// 1. ДЕТАЛЬНЫЕ МОДЕЛИ У КОСТРА
 export interface CharacterModel {
   name: string;
   color: string;
@@ -11,6 +10,7 @@ export interface CharacterModel {
   standingBreathe: string[][];
 }
 
+// 1. ДЕТАЛЬНЫЕ МОДЕЛИ У КОСТРА (ПРИБЛИЖЕННАЯ КАМЕРА)
 export const HERO_MODELS: Record<string, CharacterModel> = {
   Opal: {
     name: 'Opal',
@@ -66,63 +66,104 @@ export const HERO_MODELS: Record<string, CharacterModel> = {
   }
 };
 
-// 2. УПРОЩЕННЫЕ ТАКТИЧЕСКИЕ МОДЕЛИ ГЕРОЕВ (ДЛЯ СТРОЯ И БОЯ)
-export const MINI_HERO_SPRITES: Record<string, { walk: string[][]; idle: string[] }> = {
+// 2. МОДЕЛИ ГЕРОЕВ ПОСЛЕ ОТДАЛЕНИЯ (ГОЛОВА "o", ТЕЛО "/#\", НОГИ "L L")
+// ПОВЕРНУТЫ ВПРАВО, СМЕНА ПОЗЫ МЕЧА
+export const TACTICAL_HERO_MODELS: Record<string, {
+  idle: string[];
+  swordReady: string[];
+  walk: string[][];
+}> = {
   Opal: {
-    idle: [' o ', '/|\\', '/ \\'],
+    idle: [
+      ' o   ',
+      '/#\\  ',
+      'L L  '
+    ],
+    swordReady: [
+      ' o   ',
+      '/#\\--', // Меч направлен вправо
+      'L L  '
+    ],
     walk: [
-      [' o ', '/|>', '/ |'],
-      [' o ', '<|\\', '| \\']
+      [' o   ', '/#\\> ', 'L |  '],
+      [' o   ', '<#\\  ', '| L  ']
     ]
   },
   Huggie: {
-    idle: [' o ', '/|\\', '/ \\'],
+    idle: [
+      ' o   ',
+      '/#\\  ',
+      'L L  '
+    ],
+    swordReady: [
+      ' o   ',
+      '/#\\--',
+      'L L  '
+    ],
     walk: [
-      [' o ', '/|>', '/ |'],
-      [' o ', '<|\\', '| \\']
+      [' o   ', '/#\\> ', 'L |  '],
+      [' o   ', '<#\\  ', '| L  ']
     ]
   },
   Justin: {
-    idle: [' o ', '/|\\', '/ \\'],
+    idle: [
+      ' o   ',
+      '/#\\  ',
+      'L L  '
+    ],
+    swordReady: [
+      ' o   ',
+      '/#\\--',
+      'L L  '
+    ],
     walk: [
-      [' o ', '/|>', '/ |'],
-      [' o ', '<|\\', '| \\']
+      [' o   ', '/#\\> ', 'L |  '],
+      [' o   ', '<#\\  ', '| L  ']
     ]
   },
   Metris: {
-    idle: [' o ', '-|-', '/ \\'],
+    idle: [
+      ' o   ',
+      '/#\\  ',
+      'L L  '
+    ],
+    swordReady: [
+      ' o   ',
+      '/#\\--',
+      'L L  '
+    ],
     walk: [
-      [' o ', '-|>', '/ |'],
-      [' o ', '<|-', '| \\']
+      [' o   ', '/#\\> ', 'L |  '],
+      [' o   ', '<#\\  ', '| L  ']
     ]
   }
 };
 
-// 3. ГОБЛИНЫ ПО ТВОЕМУ ОПИСАНИЮ (<о>, /#\, l l + меч)
+// 3. ГОБЛИНЫ: ГОЛОВА "<o>", ТЕЛО "/#\", НОГИ "l l" + МЕЧ
+// ПОВЕРНУТЫ ВЛЕВО (К ИГРОКУ), МЕЧ СМОТРИТ ВЛЕВО
 export const GOBLIN_MODEL = {
   name: 'Goblin',
   color: '#84cc16',
   swordColor: '#94a3b8',
   idle: [
-    ' <o>  ',
-    '/#\\--', // тело и вытянутый меч
-    ' l l  '
+    ' <o> ',
+    '--/#\\', // Меч направлен влево
+    ' l l '
   ],
   leap: [
-    ' <o>/ ',
-    '/#\\-- ',
-    ' l l  '
+    ' <o>/',
+    '--/#\\',
+    ' l l '
   ]
 };
 
-// 4. ТЕМНЫЕ НОЧНЫЕ КУСТЫ
-export const BUSH_MODEL = [
+// 4. СИНИЕ КУСТЫ (ПОСТОЯННАЯ СТРУКТУРА)
+export const BLUE_BUSH_MODEL = [
   '   .:::..   ',
   ' .::#####::.',
   ':###########:'
 ];
 
-// 5. ЕЛИ И СТРУКТУРЫ
 export const TREE_TEMPLATES = [
   [
     '   /\\   ',
