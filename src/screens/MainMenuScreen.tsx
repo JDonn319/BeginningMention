@@ -81,9 +81,7 @@ export const MainMenuScreen: React.FC = () => {
 
   const currentHero = party.find((h) => h.id === activeHeroId) || party[0];
 
-  // --------------------------------------------------------------------------
-  // ПЕРЕХОД ИЗ МЕНЮ
-  // --------------------------------------------------------------------------
+  // Переход из меню
   const handleStartBattle = () => {
     setFadeOpacity(1);
     setTimeout(() => {
@@ -111,7 +109,6 @@ export const MainMenuScreen: React.FC = () => {
         addFloatingText(BATTLE_NODES[michael.nodeIndex].x, 18, '[TAUNT GAINED]', '#3b82f6');
       }
     } else if (michael.hp < michael.maxHp * 0.3 && michael.hasTaunt) {
-      // Теряет провокацию при критическом здоровье
       setParty((prev) =>
         prev.map((h) => (h.id === 'michael' ? { ...h, hasTaunt: false, tauntTimer: 0 } : h))
       );
@@ -125,9 +122,7 @@ export const MainMenuScreen: React.FC = () => {
     ]);
   };
 
-  // --------------------------------------------------------------------------
-  // ВЫБОР СПОСОБНОСТЕЙ
-  // --------------------------------------------------------------------------
+  // Выбор способностей
   const handleSkillSelect = (idx: number) => {
     setSelectedSkillIdx(idx);
     const skill = currentHero.skills[idx];
@@ -143,20 +138,16 @@ export const MainMenuScreen: React.FC = () => {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // ГЛАВНАЯ ДИНАМИЧЕСКАЯ КНОПКА (ATTACK / BUILD / USE / ACCEPT)
-  // --------------------------------------------------------------------------
+  // Главная динамическая кнопка
   const handleMainActionButton = () => {
     if (attackLettersT >= 0 || bossLaserTargetX !== null || timeline[0] === 'BOSS') return;
 
     if (actionMode === 'BUILD') {
-      // Установка стены перед выбранным героем
       const heroNode = BATTLE_NODES[currentHero.nodeIndex];
       setWalls((prev) => [...prev, { nodeIdx: currentHero.nodeIndex, duration: 1 }]);
       setCombatLog(`${currentHero.name} возводит защитный барьер!`);
       addFloatingText(heroNode.x, 22, '[WALL BUILT]', '#3b82f6');
 
-      // Мишель получает провокацию на 2 хода
       setParty((prev) =>
         prev.map((h) => (h.id === 'michael' ? { ...h, hasTaunt: true, tauntTimer: 2 } : h))
       );
@@ -168,7 +159,6 @@ export const MainMenuScreen: React.FC = () => {
 
     if (actionMode === 'MOVE') {
       if (selectedMoveNode === null) return;
-      // Перемещение
       setParty((prev) =>
         prev.map((h) => (h.id === currentHero.id ? { ...h, nodeIndex: selectedMoveNode } : h))
       );
@@ -207,7 +197,7 @@ export const MainMenuScreen: React.FC = () => {
       return;
     }
 
-    // РЕЖИМ АТАКИ: ТРАЕКТОРИЯ "A T T A C K"
+    // Режим атаки
     const skill = currentHero.skills[selectedSkillIdx];
     const heroNode = BATTLE_NODES[currentHero.nodeIndex];
     const distance = 74 - heroNode.x;
@@ -215,14 +205,13 @@ export const MainMenuScreen: React.FC = () => {
     let baseDmg = 12;
     let isCrit = false;
 
-    // Расчет урона по правилам героев
     if (currentHero.id === 'josef') {
       if (skill.id === 'blaster') {
         if (aimZone === 'HEAD') { baseDmg = 20; isCrit = true; }
         else if (aimZone === 'BODY') baseDmg = Math.floor(Math.random() * 5) + 11;
         else baseDmg = Math.floor(Math.random() * 5) + 6;
       } else {
-        baseDmg = Math.floor(Math.random() * 9) + 28; // Ракета
+        baseDmg = Math.floor(Math.random() * 9) + 28;
       }
     } else if (currentHero.id === 'michael') {
       if (aimZone === 'HEAD') { baseDmg = Math.floor(Math.random() * 4) + 26; isCrit = true; }
@@ -237,7 +226,6 @@ export const MainMenuScreen: React.FC = () => {
       }
     } else if (currentHero.id === 'artemis') {
       if (skill.id === 'spear') {
-        // Урон от дистанции (4 до 38)
         baseDmg = Math.max(4, Math.min(38, Math.floor(distance * 0.65)));
       } else if (skill.id === 'bomb') {
         baseDmg = 18;
@@ -246,7 +234,6 @@ export const MainMenuScreen: React.FC = () => {
       }
     }
 
-    // Запуск визуальной траектории
     const startT = Date.now();
     const duration = 600;
 
@@ -275,24 +262,19 @@ export const MainMenuScreen: React.FC = () => {
     } else {
       setCombatLog('ПОБЕГ ПРОВАЛЕН! ВЕСЬ ОТРЯД ОШЕЛУМЛЕН!');
       setScreenShake(4);
-      // Пропуск всех ходов героев — ход передается боссу
       setTimeline(['BOSS', 'BOSS', 'josef', 'michael', 'kyle', 'artemis']);
       setTimeout(() => triggerBossAI(['BOSS', 'josef', 'michael', 'kyle', 'artemis']), 600);
     }
   };
 
-  // --------------------------------------------------------------------------
-  // УМНАЯ СИСТЕМА ИНИЦИАТИВЫ И ХОД БОССА
-  // --------------------------------------------------------------------------
+  // Завершение хода игрока
   const endPlayerTurn = (actionDelay: number) => {
     setScreenShake(0);
 
-    // Сдвиг по таймлайну с задержкой от стоимости действия
     const newTimeline = [...timeline.slice(1)];
     const insertIdx = Math.min(newTimeline.length, Math.floor(actionDelay / 10));
     newTimeline.splice(insertIdx, 0, currentHero.id);
 
-    // Тик кулдаунов текущего героя
     if (currentHero.id === 'michael' && currentHero.hasTaunt) {
       const nextTaunt = currentHero.tauntTimer - 1;
       setParty((prev) =>
@@ -311,9 +293,8 @@ export const MainMenuScreen: React.FC = () => {
     }
   };
 
-  // Умный ИИ Босса
+  // ИИ Босса
   const triggerBossAI = (currentTimeline: string[]) => {
-    // Пассивный урон от горения
     if (bossBurnTimer > 0) {
       const burnDmg = Math.floor(Math.random() * 3) + 10;
       setBossHp((prev) => Math.max(0, prev - burnDmg));
@@ -321,7 +302,6 @@ export const MainMenuScreen: React.FC = () => {
       setBossBurnTimer((prev) => prev - 1);
     }
 
-    // 1. Поиск цели по логике (приоритет провокации, затем добивание раненых)
     const aliveHeroes = party.filter((h) => !h.isDead);
     if (aliveHeroes.length === 0) {
       alert('ОТРЯД ПОГИБ В КРАТЕРЕ...');
@@ -331,18 +311,13 @@ export const MainMenuScreen: React.FC = () => {
 
     let target = aliveHeroes.find((h) => h.hasTaunt);
     if (!target) {
-      // ИИ ищет героя с наименьшим здоровьем
       target = [...aliveHeroes].sort((a, b) => a.hp - b.hp)[0];
     }
 
-    // Проверка стены перед целью
     const wallOnTarget = walls.find((w) => w.nodeIdx === target!.nodeIndex);
-
-    // Выбор способности босса
     const bossSkillName = bossSilenced ? 'Удар когтями (Базовый)' : 'Плазменный луч ядра';
     setCombatLog(`ХАРПИЯ ПРИМЕНЯЕТ: [ ${bossSkillName.toUpperCase()} ] -> ${target.name}`);
 
-    // Прицеливание босса (лазерный луч на цель)
     const targetNode = BATTLE_NODES[target.nodeIndex];
     setBossLaserTargetX(targetNode.x);
 
@@ -350,12 +325,10 @@ export const MainMenuScreen: React.FC = () => {
       setBossLaserTargetX(null);
 
       if (wallOnTarget) {
-        // Удар поглощен стеной!
         setWalls((prev) => prev.filter((w) => w !== wallOnTarget));
         addFloatingText(targetNode.x, 20, '[BLOCKED BY WALL]', '#3b82f6');
         setScreenShake(3);
       } else {
-        // Нанесение урона конкретной цели
         const bossDmg = bossSilenced ? 18 : Math.floor(Math.random() * 10) + 28;
         setParty((prev) =>
           prev.map((h) => {
@@ -372,20 +345,18 @@ export const MainMenuScreen: React.FC = () => {
 
       setBossSilenced(false);
 
-      // Завершение хода босса
       const afterBossTimeline = [...currentTimeline.slice(1), 'BOSS'];
       setTimeline(afterBossTimeline);
       setActiveHeroId(afterBossTimeline[0]);
     }, 850);
   };
 
-  // Двойной клик на босса для открытия сводки (Dossier)
+  // Двойной клик на босса
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // Область босса (справа на экране)
     if (clickX > window.innerWidth * 0.65 && clickY < window.innerHeight * 0.6) {
       const now = Date.now();
       if (now - lastBossClickTime < 350) {
@@ -434,7 +405,6 @@ export const MainMenuScreen: React.FC = () => {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Тряска экрана
       const sx = screenShake > 0 ? (Math.random() - 0.5) * screenShake * 2 : 0;
       const sy = screenShake > 0 ? (Math.random() - 0.5) * screenShake * 2 : 0;
       ctx.translate(sx, sy);
@@ -442,7 +412,6 @@ export const MainMenuScreen: React.FC = () => {
       ctx.fillStyle = '#02040b';
       ctx.fillRect(0, 0, w, h);
 
-      // Виртуальная адаптивная сетка 100 x 42
       const GRID_COLS = 100;
       const GRID_ROWS = 42;
       const CELL_W = w / GRID_COLS;
@@ -453,17 +422,16 @@ export const MainMenuScreen: React.FC = () => {
 
       const baseGroundRow = 28;
       const bossCol = 70;
-      // Плавное синусоидальное парение летающего босса
       const bossFloatY = Math.sin(tick * 0.08) * 1.5;
       const bossRow = baseGroundRow - 15 + bossFloatY;
 
-      // 1. СИСТЕМНЫЕ СЛОВА
+      // Системные слова
       ['SOCKET', 'RESET', 'SWITCH'].forEach((word, i) => {
         ctx.fillStyle = 'rgba(30, 50, 100, 0.25)';
         ctx.fillText(word, (46 + i * 8) * CELL_W, (10 + i * 4) * CELL_H);
       });
 
-      // 2. РЕЛЬЕФ КРАТЕРА
+      // Рельеф кратера
       for (let sc = 0; sc < GRID_COLS; sc++) {
         const gRow = getElevation(sc, baseGroundRow);
         for (let r = gRow; r < GRID_ROWS; r++) {
@@ -475,44 +443,40 @@ export const MainMenuScreen: React.FC = () => {
         }
       }
 
-      // 3. ТАКТИЧЕСКИЕ ТОЧКИ ПЕРЕМЕЩЕНИЯ (ПРИ РЕЖИМЕ MOVE / BUILD)
+      // Точки перемещения
       if (actionMode === 'MOVE' || actionMode === 'BUILD') {
         BATTLE_NODES.forEach((node) => {
           const occ = party.find((h) => h.nodeIndex === node.id && !h.isDead);
           const isSelected = selectedMoveNode === node.id;
           const nElev = getElevation(node.x, baseGroundRow) + node.yOffset;
 
-          let slotColor = '#ffffff'; // свободное место
-          if (occ) slotColor = '#ef4444'; // занято
-          if (isSelected) slotColor = '#22c55e'; // выбрано
+          let slotColor = '#ffffff';
+          if (occ) slotColor = '#ef4444';
+          if (isSelected) slotColor = '#22c55e';
 
           ctx.fillStyle = slotColor;
           ctx.fillText(occ ? '[X]' : '[ ]', node.x * CELL_W, nElev * CELL_H);
         });
       }
 
-      // 4. СТЕНЫ-ЩИТЫ МИШЕЛЯ
+      // Стены-щиты
       walls.forEach((wall) => {
         const wNode = BATTLE_NODES[wall.nodeIdx];
         const wElev = getElevation(wNode.x, baseGroundRow) + wNode.yOffset;
         ctx.fillStyle = '#38bdf8';
-        ctx.shadowColor = '#0284c7';
-        ctx.shadowBlur = 8;
         ctx.fillText('|===|', (wNode.x + 3) * CELL_W, (wElev - 2) * CELL_H);
         ctx.fillText('|===|', (wNode.x + 3) * CELL_W, (wElev - 1) * CELL_H);
-        ctx.shadowBlur = 0;
       });
 
-      // 5. ЛЕТАЮЩИЙ БОСС ХАРПИЯ
+      // Летающий босс
       const wingFrames = Math.floor(tick / 12) % 2 === 0 ? FLYING_HARPY_FRAMES.wingsUp : FLYING_HARPY_FRAMES.wingsDown;
 
-      // Шкала HP прямо над боссом
+      // HP босса
       const hpWidth = 24;
       const filledHp = Math.floor((bossHp / bossMaxHp) * hpWidth);
       ctx.fillStyle = '#ff0033';
       ctx.fillText(`[${'='.repeat(filledHp)}${'-'.repeat(hpWidth - filledHp)}] ${bossHp}/${bossMaxHp}`, (bossCol - 2) * CELL_W, (bossRow - 2) * CELL_H);
 
-      // Иконка горения над боссом
       if (bossBurnTimer > 0) {
         ctx.fillStyle = '#ef4444';
         ctx.fillText('[B]', (bossCol + 23) * CELL_W, (bossRow - 2) * CELL_H);
@@ -527,13 +491,11 @@ export const MainMenuScreen: React.FC = () => {
         }
       });
 
-      // 6. ГЕРОИ (ДЫХАНИЕ, ОРУЖИЕ В РУКАХ, ТАРГЕТ-РАМКА)
+      // Герои
       party.forEach((hero) => {
         const node = BATTLE_NODES[hero.nodeIndex];
         const hElev = getElevation(node.x, baseGroundRow) + node.yOffset;
         const isActive = hero.id === activeHeroId && timeline[0] !== 'BOSS';
-
-        // Дыхание корпуса (ноги стоят, верх покачивается)
         const breathY = Math.sin(tick * 0.1 + node.id) * 0.4;
 
         if (hero.isDead) {
@@ -542,17 +504,15 @@ export const MainMenuScreen: React.FC = () => {
           return;
         }
 
-        // Индикатор провокации [T] над танком
         if (hero.hasTaunt) {
           ctx.fillStyle = '#22c55e';
           ctx.fillText('[T]', (node.x + 1) * CELL_W, (hElev - 5 + breathY) * CELL_H);
         }
 
-        // Рамка активного хода
         if (isActive) {
           ctx.fillStyle = '#ff8800';
           ctx.fillText('+--   --+', (node.x - 2) * CELL_W, (hElev - 4) * CELL_H);
-          ctx.fillText('|       |', (node.x - 2) * CELL_W, (hElev - 3) * CELL_H);
+          ctx.fillText('|       |', (node.x - 2) * CELL_W, (hElevationSafe(node.x, baseGroundRow, node.yOffset) - 3) * CELL_H);
           ctx.fillText('+--   --+', (node.x - 2) * CELL_W, (hElev - 0) * CELL_H);
           ctx.fillStyle = '#22c55e';
           ctx.fillText(`${hero.hp}/${hero.maxHp}`, (node.x + 6) * CELL_W, (hElev - 2) * CELL_H);
@@ -563,7 +523,6 @@ export const MainMenuScreen: React.FC = () => {
           ctx.font = `${Math.floor(CELL_H * 0.95)}px "Fira Code", monospace`;
         }
 
-        // Спрайт героя с оружием
         const weaponSprite = WEAPON_RENDER[hero.weaponType] || WEAPON_RENDER.BLASTER;
         ctx.fillStyle = hero.color;
         ctx.fillText(weaponSprite[0], node.x * CELL_W, (hElev - 3 + breathY) * CELL_H);
@@ -571,7 +530,7 @@ export const MainMenuScreen: React.FC = () => {
         ctx.fillText(weaponSprite[2], node.x * CELL_W, (hElev - 1) * CELL_H);
       });
 
-      // 7. ДИНАМИЧЕСКАЯ ТРАЕКТОРИЯ "A T T A C K"
+      // Траектория "A T T A C K"
       if (actionMode === 'ATTACK' && timeline[0] !== 'BOSS') {
         const startX = BATTLE_NODES[currentHero.nodeIndex].x + 4;
         const startY = getElevation(startX, baseGroundRow) - 2;
@@ -588,7 +547,7 @@ export const MainMenuScreen: React.FC = () => {
         });
       }
 
-      // 8. ПРИЦЕЛЬНЫЙ ЛУЧ БОССА
+      // Прицельный луч босса
       if (bossLaserTargetX !== null) {
         ctx.strokeStyle = '#ff0033';
         ctx.lineWidth = 2;
@@ -598,7 +557,7 @@ export const MainMenuScreen: React.FC = () => {
         ctx.stroke();
       }
 
-      // 9. ВСПЛЫВАЮЩИЕ ЧИСЛА УРОНА
+      // Всплывающий урон
       floatingDamages.forEach((fd) => {
         ctx.fillStyle = fd.color;
         ctx.font = `bold ${Math.floor(CELL_H * 1.15)}px "Fira Code", monospace`;
@@ -611,7 +570,11 @@ export const MainMenuScreen: React.FC = () => {
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [currentScreen, party, activeHeroId, bossHp, bossBurnTimer, walls, actionMode, selectedMoveNode, aimZone, aimOffsetX, timeline, floatingDamages, screenShake, bossLaserTargetX]);
+  }, [currentScreen, party, activeHeroId, bossHp, bossMaxHp, bossBurnTimer, walls, actionMode, selectedMoveNode, aimZone, aimOffsetX, timeline, floatingDamages, screenShake, bossLaserTargetX, currentHero]);
+
+  const hElevationSafe = (worldX: number, baseRow: number, yOff: number) => {
+    return getElevation(worldX, baseRow) + yOff;
+  };
 
   // Рендер меню
   useEffect(() => {
@@ -694,7 +657,6 @@ export const MainMenuScreen: React.FC = () => {
         }
         @media (orientation: landscape) { .portrait-warning { display: none; } }
 
-        /* ИНТЕРФЕЙС БИТВЫ */
         .hud-top {
           position: absolute; top: 8px; left: 14px; right: 14px; z-index: 10;
           display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none;
@@ -711,13 +673,11 @@ export const MainMenuScreen: React.FC = () => {
         }
         .skill-btn.active { color: #ff9900; text-shadow: 0 0 6px #ff9900; font-weight: bold; }
 
-        /* ПЛАВАЮЩЕЕ ОПИСАНИЕ НАВЫКА */
         .skill-tooltip {
           position: absolute; top: 115px; left: 14px; z-index: 10; max-width: 320px;
           background: rgba(4, 12, 30, 0.95); border: 1px solid #38bdf8; padding: 6px 10px; font-size: 11px; color: #7dd3fc;
         }
 
-        /* ДЖОЙСТИК ПРИЦЕЛИВАНИЯ */
         .aim-joystick {
           position: absolute; bottom: 65px; left: 16px; z-index: 15;
           display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -731,7 +691,6 @@ export const MainMenuScreen: React.FC = () => {
         .joy-btn:active { background: #ff3333; color: #000; }
         .zone-indicator { font-size: 9px; color: #fca5a5; margin-top: 2px; text-transform: uppercase; }
 
-        /* НИЖНЯЯ ПАНЕЛЬ */
         .hud-bottom {
           position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
           background: rgba(2, 6, 18, 0.92); border-top: 1px solid #1e293b;
@@ -742,7 +701,6 @@ export const MainMenuScreen: React.FC = () => {
         .t-chip.active { color: #00f0ff; text-shadow: 0 0 8px #00f0ff; font-weight: bold; border-bottom: 2px solid #00f0ff; }
         .t-chip.boss { color: #ef4444; text-shadow: 0 0 6px #ef4444; font-weight: bold; }
 
-        /* ДИНАМИЧЕСКАЯ ГЛАВНАЯ КНОПКА (ATTACK / BUILD / USE / ACCEPT) */
         .main-action-btn {
           font-family: 'Press Start 2P', monospace; font-size: 13px;
           padding: 12px 24px; border: 2px solid #ff0055; background: rgba(255, 0, 85, 0.15);
@@ -753,7 +711,6 @@ export const MainMenuScreen: React.FC = () => {
         .main-action-btn.use { border-color: #22c55e; color: #22c55e; text-shadow: 0 0 8px #22c55e; background: rgba(34, 197, 94, 0.15); }
         .main-action-btn.accept { border-color: #eab308; color: #eab308; text-shadow: 0 0 8px #eab308; background: rgba(234, 179, 8, 0.15); }
 
-        /* ОКНО СВОДКИ БОССА */
         .dossier-modal {
           position: fixed; inset: 10% 15%; background: rgba(2, 6, 20, 0.98); border: 2px solid #ff0055;
           z-index: 100; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;
@@ -776,20 +733,20 @@ export const MainMenuScreen: React.FC = () => {
       {currentScreen === 'MENU' && (
         <>
           <canvas ref={menuCanvasRef} className="screen-canvas" />
-          <div style={{ position: 'absolute', inset: 0, z-index: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <img src="/basiclogo.png" alt="BeginningMention" style={{ maxHeight: '180px', marginBottom: '20px' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
             <div style={{ width: '100vw', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div
-                style={{ width: '100%', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#00f0ff', background: menuSelectedIdx === 0 ? 'rgba(0,240,255,0.18)' : 'transparent', fontFamily: 'Press Start 2P', fontSize: '12px' }}
+                style={{ width: '100%', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#00f0ff', background: menuSelectedIdx === 0 ? 'rgba(0,240,255,0.18)' : 'transparent', fontFamily: "'Press Start 2P', monospace", fontSize: '12px' }}
                 onPointerEnter={() => setMenuSelectedIdx(0)}
                 onClick={handleStartBattle}
               >
                 {menuSelectedIdx === 0 ? '> НОВАЯ ЭКСПЕДИЦИЯ' : '  НОВАЯ ЭКСПЕДИЦИЯ'}
               </div>
               <div
-                style={{ width: '100%', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'not-allowed', color: '#475569', fontFamily: 'Press Start 2P', fontSize: '12px' }}
+                style={{ width: '100%', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasSave ? 'pointer' : 'not-allowed', color: hasSave ? '#94a3b8' : '#475569', fontFamily: "'Press Start 2P', monospace", fontSize: '12px' }}
               >
-                ЗАГРУЗКИ (LOCKED)
+                {hasSave ? '> ЗАГРУЗКИ' : '  ЗАГРУЗКИ (LOCKED)'}
               </div>
             </div>
           </div>
