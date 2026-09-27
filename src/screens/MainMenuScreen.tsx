@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   HERO_MODELS,
-  MINI_HERO_SPRITES,
+  TACTICAL_HERO_MODELS,
   GOBLIN_MODEL,
-  BUSH_MODEL,
+  BLUE_BUSH_MODEL,
   TREE_TEMPLATES,
   KINGDOM_SPIRES,
   GROUND_STAMPS
@@ -17,9 +17,8 @@ type CutscenePhase =
   | 'CRUMBLING'
   | 'WALKING'
   | 'BUSH_SHAKING'
-  | 'HERO_APPROACH'
-  | 'GOBLIN_LEAP'
-  | 'HEROES_RETREAT';
+  | 'GOBLINS_EMERGE'
+  | 'HEROES_READY';
 
 interface CrumbleParticle {
   char: string;
@@ -40,10 +39,12 @@ export const MainMenuScreen: React.FC = () => {
   const [dialogText, setDialogText] = useState<string>('');
   const [crumbleParticles, setCrumbleParticles] = useState<CrumbleParticle[]>([]);
 
-  // Плавный скролл, ход и скачок гоблина
+  // Плавная камера и ходьба
   const [cameraX, setCameraX] = useState<number>(0);
   const [partyWalkDist, setPartyWalkDist] = useState<number>(0);
-  const [goblinLeapT, setGoblinLeapT] = useState<number>(0);
+
+  // Выход гоблинов из кустов (0 -> 1)
+  const [goblinEmergeProgress, setGoblinEmergeProgress] = useState<number>(0);
 
   // Плавное отдаление камеры (Zoom)
   const [currentZoom, setCurrentZoom] = useState<number>(1.0);
@@ -51,13 +52,13 @@ export const MainMenuScreen: React.FC = () => {
   const menuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Функция рельефа для идеальной посадки деревьев и земли
+  // Топографическая кривая ландшафта (земля не прямая)
   const getGroundElevation = (worldX: number, baseRow: number) => {
     return Math.floor(
       baseRow +
-      Math.sin(worldX * 0.09) * 2.8 +
-      Math.cos(worldX * 0.04) * 2.2 +
-      Math.sin(worldX * 0.22) * 1.0
+      Math.sin(worldX * 0.08) * 3.0 +
+      Math.cos(worldX * 0.035) * 2.2 +
+      Math.sin(worldX * 0.18) * 1.2
     );
   };
 
@@ -76,15 +77,15 @@ export const MainMenuScreen: React.FC = () => {
     }
   }, [phase]);
 
-  // Ходьба отряда и синхронный сдвиг камеры
+  // Движение отряда и синхронный скролл камеры вправо
   useEffect(() => {
     if (phase === 'WALKING') {
       const start = Date.now();
       const duration = 3800;
       const interval = setInterval(() => {
         const p = Math.min(1, (Date.now() - start) / duration);
-        setCameraX(p * 32);
-        setPartyWalkDist(p * 36);
+        setCameraX(p * 36);
+        setPartyWalkDist(p * 38);
 
         if (p >= 1) {
           clearInterval(interval);
@@ -95,22 +96,19 @@ export const MainMenuScreen: React.FC = () => {
     }
   }, [phase]);
 
-  // Прыжок гоблина из кустов с сохранением дистанции арены
+  // Вылезание гоблинов после клика на кусты
   useEffect(() => {
-    if (phase === 'HERO_APPROACH') {
-      const t1 = setTimeout(() => {
-        setPhase('GOBLIN_LEAP');
-        const jumpStart = Date.now();
-        const jInterval = setInterval(() => {
-          const jp = Math.min(1, (Date.now() - jumpStart) / 600);
-          setGoblinLeapT(jp);
-          if (jp >= 1) {
-            clearInterval(jInterval);
-            setTimeout(() => setPhase('HEROES_RETREAT'), 400);
-          }
-        }, 20);
-      }, 700);
-      return () => clearTimeout(t1);
+    if (phase === 'GOBLINS_EMERGE') {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        const p = Math.min(1, (Date.now() - start) / 700);
+        setGoblinEmergeProgress(p);
+        if (p >= 1) {
+          clearInterval(interval);
+          setPhase('HEROES_READY');
+        }
+      }, 25);
+      return () => clearInterval(interval);
     }
   }, [phase]);
 
@@ -143,7 +141,7 @@ export const MainMenuScreen: React.FC = () => {
   };
 
   // ==========================================
-  // РЕНДЕР МЕНЮ С ТОЧНОЙ ПОСАДКОЙ ДЕРЕВЬЕВ НА ЗЕМЛЮ
+  // 1. РЕНДЕР МЕНЮ
   // ==========================================
   useEffect(() => {
     if (screen !== 'MENU') return;
@@ -195,7 +193,7 @@ export const MainMenuScreen: React.FC = () => {
         ctx.fillText(l, moonCol * CELL_W, (3 + i) * CELL_H)
       );
 
-      // Ели привязаны к РЕЛЬЕФУ (не висят в воздухе!)
+      // Ели привязаны к высоте рельефа
       const baseMenuGround = Math.floor(rows * 0.5);
       for (let c = 2; c < cols - 8; c += 14) {
         const treeElevation = getGroundElevation(c, baseMenuGround);
@@ -206,7 +204,7 @@ export const MainMenuScreen: React.FC = () => {
         });
       }
 
-      // Рельефная земля
+      // Земля
       for (let c = 0; c < cols; c++) {
         const gStart = getGroundElevation(c, baseMenuGround);
         for (let r = gStart; r < rows; r++) {
@@ -229,7 +227,7 @@ export const MainMenuScreen: React.FC = () => {
   }, [screen]);
 
   // ==========================================
-  // РЕНДЕР КАТ-СЦЕНЫ (С ПЛАВНЫМ ZOOM OUT И 2 РЯДАМИ)
+  // 2. РЕНДЕР КАТ-СЦЕНЫ В ИГРЕ
   // ==========================================
   useEffect(() => {
     if (screen !== 'GAME') return;
@@ -241,13 +239,13 @@ export const MainMenuScreen: React.FC = () => {
     let animId: number;
     let tick = 0;
 
-    // Плавная анимация зума
+    // Zoom out начинается с момента клика на Метриса
     const targetZoom = (phase === 'WAIT_START' || phase === 'CAMP_PEACE' || phase === 'METRIS_ALERT') ? 1.0 : 0.65;
 
     const render = () => {
       tick++;
 
-      // Интерполяция масштаба (отдаление при клике на Метриса)
+      // Плавное уменьшение масштаба
       setCurrentZoom((prev) => prev + (targetZoom - prev) * 0.04);
 
       const w = window.innerWidth;
@@ -264,7 +262,7 @@ export const MainMenuScreen: React.FC = () => {
       ctx.fillStyle = '#010309';
       ctx.fillRect(0, 0, w, h);
 
-      // Динамический размер ячейки от Zoom
+      // Ячейка сетки с учетом текущего зума
       const CELL_W = 12 * currentZoom;
       const CELL_H = 16 * currentZoom;
 
@@ -273,8 +271,8 @@ export const MainMenuScreen: React.FC = () => {
       ctx.font = `${Math.floor(CELL_H)}px "Fira Code", monospace`;
       ctx.textBaseline = 'top';
 
-      const baseGroundRow = Math.floor(rows * 0.72);
-      const fireWorldX = 28;
+      const baseGroundRow = Math.floor(rows * 0.70);
+      const fireWorldX = 26;
       const fireScreenX = fireWorldX - cameraX;
       const fireElevation = getGroundElevation(fireWorldX, baseGroundRow);
 
@@ -285,13 +283,13 @@ export const MainMenuScreen: React.FC = () => {
             const ch = line[ci];
             if (ch === ' ') continue;
             ctx.fillStyle = '#0c172e';
-            ctx.fillText(ch, (rep + ci - cameraX * 0.25) * CELL_W, (baseGroundRow - 14 + li) * CELL_H);
+            ctx.fillText(ch, (rep + ci - cameraX * 0.25) * CELL_W, (baseGroundRow - 15 + li) * CELL_H);
           }
         });
       }
 
-      // 2. ЕЛИ В ИГРЕ — ИДЕАЛЬНО СТОЯТ НА РЕЛЬЕФЕ
-      for (let wc = 0; wc < 140; wc += 11) {
+      // 2. ДАЛЬНИЕ ЕЛИ
+      for (let wc = 0; wc < 150; wc += 12) {
         const sc = wc - cameraX;
         if (sc < -15 || sc > cols + 15) continue;
         const groundY = getGroundElevation(wc, baseGroundRow);
@@ -306,7 +304,7 @@ export const MainMenuScreen: React.FC = () => {
         });
       }
 
-      // 3. ЗЕМЛЯ И СВЕТ КОСТРА
+      // 3. ЗЕМЛЯ И СВЕТ КОСТРА (РЕЛЬЕФ С ГЛУБИНОЙ)
       const fireLightRadius = 18 + Math.sin(tick * 0.08) * 2;
       for (let sc = 0; sc < cols; sc++) {
         const wc = sc + cameraX;
@@ -333,7 +331,7 @@ export const MainMenuScreen: React.FC = () => {
         }
       }
 
-      // 4. КОСТЕР
+      // 4. КОСТЕР (ЕСЛИ В ПОЛЕ ЗРЕНИЯ)
       if (fireScreenX > -10 && fireScreenX < cols + 10) {
         const flames = [
           ['   ( )   ', '  ( * )  ', ' ( ^ * ) ', ' /=====\\ '],
@@ -351,24 +349,26 @@ export const MainMenuScreen: React.FC = () => {
         });
       }
 
-      // 5. ТЕМНЫЕ НОЧНЫЕ КУСТЫ СПРАВА
-      const bushWorldX = 85;
+      // 5. СИНИЕ КУСТЫ СПРАВА (ПОСТОЯННО НАХОДЯТСЯ В МИРЕ НА X = 90)
+      const bushWorldX = 90;
       const bushScreenX = bushWorldX - cameraX;
       const bushElevation = getGroundElevation(bushWorldX, baseGroundRow);
-      const isBushShake = phase === 'BUSH_SHAKING' || phase === 'HERO_APPROACH';
-      const shakeDX = isBushShake ? Math.sin(tick * 0.5) * 0.6 : 0;
 
-      BUSH_MODEL.forEach((bLine, li) => {
+      // Шевелятся только в фазе ожидания клика. После клика ЗАМИРАЮТ!
+      const isBushShake = phase === 'BUSH_SHAKING';
+      const shakeDX = isBushShake ? Math.sin(tick * 0.45) * 0.5 : 0;
+
+      BLUE_BUSH_MODEL.forEach((bLine, li) => {
         for (let ci = 0; ci < bLine.length; ci++) {
           const ch = bLine[ci];
           if (ch === ' ') continue;
-          // Ночной цвет кустов
-          ctx.fillStyle = '#091b14';
-          ctx.fillText(ch, (bushScreenX + ci + shakeDX) * CELL_W, (bushElevation - BUSH_MODEL.length + li) * CELL_H);
+          // Ночные синие оттенки кустов
+          ctx.fillStyle = (ch === '#' || ch === ':') ? '#1e3a8a' : '#172554';
+          ctx.fillText(ch, (bushScreenX + ci + shakeDX) * CELL_W, (bushElevation - BLUE_BUSH_MODEL.length + li) * CELL_H);
         }
       });
 
-      // Восклицательный знак над кустами
+      // Восклицательный знак над кустами (пока они шевелятся)
       if (phase === 'BUSH_SHAKING' && Math.sin(tick * 0.12) > 0) {
         ctx.fillStyle = '#ff2222';
         ctx.shadowColor = '#ff0000';
@@ -377,81 +377,96 @@ export const MainMenuScreen: React.FC = () => {
         ctx.shadowBlur = 0;
       }
 
-      // 6. ГОБЛИНЫ (<o>, /#\, l l + МЕЧ) С ДИСТАНЦИЕЙ АРЕНЫ
-      if (phase === 'GOBLIN_LEAP' || phase === 'HEROES_RETREAT') {
-        // Дистанция: гоблин приземляется на X = 68, оставляя свободное место до отряда
-        let gobWorldX: number;
-        let gobAltitude = 0;
-        let gobSprite = GOBLIN_MODEL.idle;
+      // 6. ГОБЛИНЫ (<o>, /#\, l l + МЕЧ НАПРАВЛЕН ВЛЕВО НА ИГРОКА)
+      if (phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY') {
+        // Дистанция выхода из кустов: главный гоблин останавливается на X = 74
+        // Это оставляет просторный разрыв (арену) между отрядом и монстрами
+        const targetGobX = bushWorldX - 16;
+        const currentGobX = bushWorldX - goblinEmergeProgress * 16;
+        const currentGobScrX = currentGobX - cameraX;
+        const currentGobElev = getGroundElevation(currentGobX, baseGroundRow);
 
-        if (phase === 'GOBLIN_LEAP') {
-          gobWorldX = bushWorldX - goblinLeapT * 17;
-          gobAltitude = Math.sin(goblinLeapT * Math.PI) * 4;
-          gobSprite = goblinLeapT < 0.85 ? GOBLIN_MODEL.leap : GOBLIN_MODEL.idle;
-        } else {
-          gobWorldX = bushWorldX - 17;
-          gobSprite = GOBLIN_MODEL.idle;
-        }
+        const gobModel = phase === 'GOBLINS_EMERGE' ? GOBLIN_MODEL.leap : GOBLIN_MODEL.idle;
 
-        const gobScreenX = gobWorldX - cameraX;
-        const gobElevation = getGroundElevation(gobWorldX, baseGroundRow);
-
-        // Главный гоблин с мечом
-        gobSprite.forEach((line, li) => {
+        // Главный гоблин (повернут влево)
+        gobModel.forEach((line, li) => {
           for (let ci = 0; ci < line.length; ci++) {
             const ch = line[ci];
             if (ch === ' ') continue;
             ctx.fillStyle = (ch === '-' || ch === '/') ? GOBLIN_MODEL.swordColor : GOBLIN_MODEL.color;
-            ctx.fillText(ch, (gobScreenX + ci) * CELL_W, (gobElevation - gobSprite.length - gobAltitude + li) * CELL_H);
+            ctx.fillText(ch, (currentGobScrX + ci) * CELL_W, (currentGobElev - gobModel.length + li) * CELL_H);
           }
         });
 
-        // 2 гоблина сзади в резерве
-        if (phase === 'HEROES_RETREAT') {
-          const g2Elevation = getGroundElevation(bushWorldX + 6, baseGroundRow);
+        // 2 гоблина сзади у кустов (тоже смотрят влево)
+        if (phase === 'HEROES_READY') {
+          const g2Elev = getGroundElevation(targetGobX + 7, baseGroundRow);
+          const g3Elev = getGroundElevation(targetGobX + 13, baseGroundRow);
+
           GOBLIN_MODEL.idle.forEach((line, li) => {
-            ctx.fillStyle = '#4d7c0f';
-            ctx.fillText(line, (bushScreenX + 6) * CELL_W, (g2Elevation - GOBLIN_MODEL.idle.length + li) * CELL_H);
-            ctx.fillText(line, (bushScreenX + 12) * CELL_W, (g2Elevation - 1 - GOBLIN_MODEL.idle.length + li) * CELL_H);
+            for (let ci = 0; ci < line.length; ci++) {
+              const ch = line[ci];
+              if (ch === ' ') continue;
+              ctx.fillStyle = (ch === '-' || ch === '/') ? GOBLIN_MODEL.swordColor : '#4d7c0f';
+              ctx.fillText(ch, (targetGobX + 7 - cameraX + ci) * CELL_W, (g2Elev - 1 - GOBLIN_MODEL.idle.length + li) * CELL_H);
+              ctx.fillText(ch, (targetGobX + 13 - cameraX + ci) * CELL_W, (g3Elev - GOBLIN_MODEL.idle.length + li) * CELL_H);
+            }
           });
         }
       }
 
-      // 7. СТРОЙ ГЕРОЕВ: 2 РЯДА (2 СВЕРХУ, 2 СНИЗУ С ДИСТАНЦИЕЙ)
-      // До диалога сидят у огня. После диалога встают в строй:
-      // ВЕРХНИЙ РЯД: Opal (сзади-сверху), Justin (впереди-сверху)
-      // НИЖНИЙ РЯД: Huggie (сзади-снизу), Metris (впереди-снизу)
-      const formation = [
-        { key: 'Opal',   colOffset: -10, rowOffset: -4, campCol: fireWorldX - 12 },
-        { key: 'Justin', colOffset: -3,  rowOffset: -4, campCol: fireWorldX + 6  },
-        { key: 'Huggie', colOffset: -10, rowOffset: 0,  campCol: fireWorldX - 7  },
-        { key: 'Metris', colOffset: -3,  rowOffset: 0,  campCol: fireWorldX + 11 }
+      // 7. СТРОЙ ГЕРОЕВ (2 РЯДА СО СМЕЩЕНИЕМ И ГЛУБИНОЙ)
+      // До диалога: сидят у огня в детальных позах.
+      // После отдаления:
+      // ВТОРОЙ РЯД (ДАЛЬНИЙ/ВЫШЕ): находится левее (-X) и выше по рельефу (-Y):
+      //   - Opal:   colOffset: -16, rowOffset: -2
+      //   - Huggie: colOffset: -8,  rowOffset: -2
+      // ПЕРВЫЙ РЯД (БЛИЖНИЙ/НИЖЕ): выдвинут дальше вправо (+X) и ниже по рельефу (+Y):
+      //   - Justin: colOffset: -10, rowOffset: +2
+      //   - Metris: colOffset: -2,  rowOffset: +2
+      const tacticalFormation = [
+        // Верхний/дальний ряд (выше, позади)
+        { key: 'Opal',   colOffset: -16, rowOffset: -2, campCol: fireWorldX - 12 },
+        { key: 'Huggie', colOffset: -8,  rowOffset: -2, campCol: fireWorldX - 7  },
+        // Нижний/ближний ряд (ниже, впереди)
+        { key: 'Justin', colOffset: -10, rowOffset: 2,  campCol: fireWorldX + 6  },
+        { key: 'Metris', colOffset: -2,  rowOffset: 2,  campCol: fireWorldX + 11 }
       ];
 
-      const isTactical = phase === 'WALKING' || phase === 'BUSH_SHAKING' || phase === 'HERO_APPROACH' || phase === 'GOBLIN_LEAP' || phase === 'HEROES_RETREAT';
+      const isTactical = phase === 'WALKING' || phase === 'BUSH_SHAKING' || phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY';
       const walkStep = Math.floor(tick / 6) % 2;
+      const isSwordDrawn = phase === 'HEROES_READY';
 
-      formation.forEach((f) => {
-        const hero = HERO_MODELS[f.key];
+      // Сортировка по Y: сначала рендерим верхний ряд, затем нижний (реальный объем и глубина)
+      const sortedFormation = [...tacticalFormation].sort((a, b) => a.rowOffset - b.rowOffset);
+
+      sortedFormation.forEach((f) => {
+        const heroDetail = HERO_MODELS[f.key];
+        const heroTactical = TACTICAL_HERO_MODELS[f.key];
+
         let wX: number;
         let groundY: number;
         let sprite: string[];
 
         if (!isTactical) {
-          // У костра: детальные модели
+          // У костра: крупные детальные позы
           wX = f.campCol;
           groundY = getGroundElevation(wX, baseGroundRow);
           sprite = (phase === 'METRIS_ALERT' || phase === 'DIALOG' || phase === 'CRUMBLING') && f.key === 'Metris'
-            ? hero.standingBreathe[Math.floor(tick / 18) % 2]
-            : hero.sitting[Math.floor(tick / 50) % 2];
+            ? heroDetail.standingBreathe[Math.floor(tick / 18) % 2]
+            : heroDetail.sitting[Math.floor(tick / 50) % 2];
         } else {
-          // В тактическом строю: 2 ряда, упрощенные модели
-          const retreat = phase === 'HEROES_RETREAT' ? -5 : 0;
-          wX = fireWorldX + partyWalkDist + f.colOffset + retreat;
+          // В тактическом строю: o /#\ L L, смотрят вправо, стоят на разной глубине
+          wX = fireWorldX + partyWalkDist + f.colOffset;
           groundY = getGroundElevation(wX, baseGroundRow) + f.rowOffset;
 
-          const mini = MINI_HERO_SPRITES[f.key];
-          sprite = phase === 'WALKING' ? mini.walk[walkStep] : mini.idle;
+          if (phase === 'WALKING') {
+            sprite = heroTactical.walk[walkStep];
+          } else if (isSwordDrawn) {
+            sprite = heroTactical.swordReady; // Меч на изготовку!
+          } else {
+            sprite = heroTactical.idle;
+          }
         }
 
         const sX = wX - cameraX;
@@ -459,12 +474,12 @@ export const MainMenuScreen: React.FC = () => {
           for (let ci = 0; ci < line.length; ci++) {
             const ch = line[ci];
             if (ch === ' ') continue;
-            ctx.fillStyle = hero.color;
+            ctx.fillStyle = (ch === '-' || ch === '/') && isTactical ? '#e2e8f0' : heroDetail.color;
             ctx.fillText(ch, (sX + ci) * CELL_W, (groundY - sprite.length + li) * CELL_H);
           }
         });
 
-        // Восклицательный знак над Метрисом
+        // Восклицательный знак над Метрисом у огня
         if (f.key === 'Metris' && phase === 'METRIS_ALERT' && Math.sin(tick * 0.1) > -0.2) {
           ctx.fillStyle = '#ff2222';
           ctx.shadowColor = '#ff0000';
@@ -495,7 +510,7 @@ export const MainMenuScreen: React.FC = () => {
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [screen, phase, cameraX, partyWalkDist, goblinLeapT, crumbleParticles, currentZoom]);
+  }, [screen, phase, cameraX, partyWalkDist, goblinEmergeProgress, crumbleParticles, currentZoom]);
 
   // Тапы
   const handleGameClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -512,11 +527,12 @@ export const MainMenuScreen: React.FC = () => {
       }
       return;
     }
+    // Клик по кустам: кусты мгновенно замирают, гоблины вылезают
     if (phase === 'BUSH_SHAKING') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      if (Math.abs(clickX - window.innerWidth * 0.65) < 160) {
-        setPhase('HERO_APPROACH');
+      if (Math.abs(clickX - window.innerWidth * 0.70) < 160) {
+        setPhase('GOBLINS_EMERGE');
       }
     }
   };
@@ -738,12 +754,12 @@ export const MainMenuScreen: React.FC = () => {
           )}
 
           {phase === 'BUSH_SHAKING' && (
-            <div className="bottom-hint" style={{ color: '#eab308', textShadow: '0 0 10px #eab308' }}>
-              Кликни на подозрительные кусты
+            <div className="bottom-hint" style={{ color: '#38bdf8', textShadow: '0 0 10px #38bdf8' }}>
+              Кликни на синие кусты
             </div>
           )}
 
-          {(phase === 'GOBLIN_LEAP' || phase === 'HEROES_RETREAT') && (
+          {(phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY') && (
             <div className="alert-banner">
               [ ! ] ВНИМАНИЕ: ЗАСАДА ГОБЛИНОВ-МАРОДЕРОВ [ ! ]
             </div>
