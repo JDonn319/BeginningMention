@@ -1,159 +1,112 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  HERO_MODELS,
-  TACTICAL_HERO_MODELS,
-  GOBLIN_MODEL,
-  BLUE_BUSH_MODEL,
-  TREE_TEMPLATES,
-  KINGDOM_SPIRES,
-  GROUND_STAMPS
+  INITIAL_PARTY,
+  HARPY_CRATER_BOSS,
+  CRATER_GROUND_SYMBOLS,
+  BattleHero
 } from '../templates/asciiModels';
 
-type CutscenePhase =
-  | 'WAIT_START'
-  | 'CAMP_PEACE'
-  | 'METRIS_ALERT'
-  | 'DIALOG'
-  | 'CRUMBLING'
-  | 'WALKING'
-  | 'BUSH_SHAKING'
-  | 'GOBLINS_EMERGE'
-  | 'HEROES_READY';
-
-interface CrumbleParticle {
-  char: string;
+interface FloatingDmg {
+  id: number;
+  text: string;
   x: number;
   y: number;
-  vx: number;
-  vy: number;
+  color: string;
   alpha: number;
 }
 
 export const MainMenuScreen: React.FC = () => {
-  const [screen, setScreen] = useState<'MENU' | 'GAME'>('MENU');
-  const [fadeOpacity, setFadeOpacity] = useState<number>(0);
-  const [selectedIdx, setSelectedIdx] = useState<number>(0);
-  const [hasSave] = useState<boolean>(() => !!localStorage.getItem('bm_save'));
+  // Боевое состояние
+  const [party, setParty] = useState<BattleHero[]>(INITIAL_PARTY);
+  const [activeHeroIdx, setActiveHeroIdx] = useState<number>(0);
+  const [bossHp, setBossHp] = useState<number>(910);
+  const [bossMaxHp] = useState<number>(1000);
 
-  const [phase, setPhase] = useState<CutscenePhase>('WAIT_START');
-  const [dialogText, setDialogText] = useState<string>('');
-  const [crumbleParticles, setCrumbleParticles] = useState<CrumbleParticle[]>([]);
+  // Анимация траектории "A T T A C K"
+  const [attackLettersT, setAttackLettersT] = useState<number>(-1);
+  const [isBossHurt, setIsBossHurt] = useState<boolean>(false);
+  const [floatingDamages, setFloatingDamages] = useState<FloatingDmg[]>([]);
 
-  // Плавная камера и ходьба
-  const [cameraX, setCameraX] = useState<number>(0);
-  const [partyWalkDist, setPartyWalkDist] = useState<number>(0);
+  // Меню выбора действия
+  const [actionCol, setActionCol] = useState<'LEFT' | 'RIGHT'>('LEFT');
+  const [actionRow, setActionRow] = useState<number>(0);
 
-  // Выход гоблинов из кустов (0 -> 1)
-  const [goblinEmergeProgress, setGoblinEmergeProgress] = useState<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Плавное отдаление камеры (Zoom)
-  const [currentZoom, setCurrentZoom] = useState<number>(1.0);
+  const activeHero = party[activeHeroIdx];
 
-  const menuCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const gameCanvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  // Топографическая кривая ландшафта (земля не прямая)
+  // Смещение ландшафта (кратера)
   const getGroundElevation = (worldX: number, baseRow: number) => {
     return Math.floor(
       baseRow +
-      Math.sin(worldX * 0.08) * 3.0 +
-      Math.cos(worldX * 0.035) * 2.2 +
-      Math.sin(worldX * 0.18) * 1.2
+      Math.sin(worldX * 0.12) * 2.2 +
+      Math.cos(worldX * 0.05) * 1.8
     );
   };
 
-  const handleStartGame = () => {
-    setFadeOpacity(1);
-    setTimeout(() => {
-      setScreen('GAME');
-      setTimeout(() => setFadeOpacity(0), 1200);
-    }, 800);
+  // Запуск атаки "A T T A C K"
+  const triggerAttack = () => {
+    if (attackLettersT >= 0) return; // уже анимируется
+
+    const startTime = Date.now();
+    const duration = 750;
+
+    const animInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      setAttackLettersT(progress);
+
+      if (progress >= 1) {
+        clearInterval(animInterval);
+        setAttackLettersT(-1);
+
+        // Удар по боссу
+        const dmg = Math.floor(Math.random() * 40) + 70;
+        setBossHp((prev) => Math.max(0, prev - dmg));
+        setIsBossHurt(true);
+
+        // Вылетающие цифры урона
+        const newDmg: FloatingDmg = {
+          id: Date.now(),
+          text: dmg > 95 ? `Critical -${dmg}` : `-${dmg}`,
+          x: 75 + (Math.random() - 0.5) * 4,
+          y: 28,
+          color: dmg > 95 ? '#ff0033' : '#ff3333',
+          alpha: 1.0
+        };
+        setFloatingDamages((prev) => [...prev, newDmg]);
+
+        setTimeout(() => {
+          setIsBossHurt(false);
+          // Переход хода к следующему герою
+          setActiveHeroIdx((prev) => (prev + 1) % party.length);
+        }, 350);
+      }
+    }, 20);
   };
 
+  // Анимация всплывающего урона
   useEffect(() => {
-    if (phase === 'CAMP_PEACE') {
-      const t = setTimeout(() => setPhase('METRIS_ALERT'), 3500);
-      return () => clearTimeout(t);
-    }
-  }, [phase]);
+    if (floatingDamages.length === 0) return;
+    const interval = setInterval(() => {
+      setFloatingDamages((prev) =>
+        prev
+          .map((d) => ({ ...d, y: d.y - 0.4, alpha: d.alpha - 0.03 }))
+          .filter((d) => d.alpha > 0)
+      );
+    }, 30);
+    return () => clearInterval(interval);
+  }, [floatingDamages]);
 
-  // Движение отряда и синхронный скролл камеры вправо
+  // Главный цикл рендера боевой сцены
   useEffect(() => {
-    if (phase === 'WALKING') {
-      const start = Date.now();
-      const duration = 3800;
-      const interval = setInterval(() => {
-        const p = Math.min(1, (Date.now() - start) / duration);
-        setCameraX(p * 36);
-        setPartyWalkDist(p * 38);
-
-        if (p >= 1) {
-          clearInterval(interval);
-          setPhase('BUSH_SHAKING');
-        }
-      }, 30);
-      return () => clearInterval(interval);
-    }
-  }, [phase]);
-
-  // Вылезание гоблинов после клика на кусты
-  useEffect(() => {
-    if (phase === 'GOBLINS_EMERGE') {
-      const start = Date.now();
-      const interval = setInterval(() => {
-        const p = Math.min(1, (Date.now() - start) / 700);
-        setGoblinEmergeProgress(p);
-        if (p >= 1) {
-          clearInterval(interval);
-          setPhase('HEROES_READY');
-        }
-      }, 25);
-      return () => clearInterval(interval);
-    }
-  }, [phase]);
-
-  // Осыпание диалога
-  const handleNextDialog = () => {
-    if (!dialogText) return;
-    const particles: CrumbleParticle[] = [];
-    const text = dialogText;
-    const startX = window.innerWidth * 0.12;
-    const startY = window.innerHeight * 0.75;
-
-    for (let i = 0; i < text.length; i++) {
-      particles.push({
-        char: text[i],
-        x: startX + i * 14,
-        y: startY,
-        vx: (Math.random() - 0.5) * 3,
-        vy: -Math.random() * 2,
-        alpha: 1
-      });
-    }
-
-    setCrumbleParticles(particles);
-    setDialogText('');
-    setPhase('CRUMBLING');
-    setTimeout(() => {
-      setCrumbleParticles([]);
-      setPhase('WALKING');
-    }, 1300);
-  };
-
-  // ==========================================
-  // 1. РЕНДЕР МЕНЮ
-  // ==========================================
-  useEffect(() => {
-    if (screen !== 'MENU') return;
-    const canvas = menuCanvasRef.current;
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     let animId: number;
     let tick = 0;
-    const CELL_W = 10;
-    const CELL_H = 14;
 
     const render = () => {
       tick++;
@@ -168,613 +121,535 @@ export const MainMenuScreen: React.FC = () => {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      ctx.fillStyle = '#01040a';
+      // Фон: глубочайший черный космос
+      ctx.fillStyle = '#02040b';
       ctx.fillRect(0, 0, w, h);
 
+      // Фиксированный размер сетки
+      const CELL_W = 10;
+      const CELL_H = 14;
       const cols = Math.ceil(w / CELL_W);
       const rows = Math.ceil(h / CELL_H);
+
       ctx.font = `${CELL_H}px "Fira Code", monospace`;
       ctx.textBaseline = 'top';
 
-      // Небо
-      for (let r = 0; r < Math.floor(rows * 0.5); r++) {
-        for (let c = 0; c < cols; c++) {
-          if ((c * 23 + r * 67) % 100 < 4) {
-            ctx.fillStyle = `rgba(180, 220, 255, ${0.08 + Math.sin(tick * 0.04 + c) * 0.04})`;
+      const baseGroundRow = Math.floor(rows * 0.70);
+      const bossCol = cols - 28;
+      const bossRow = baseGroundRow - 12;
+
+      // 1. ФОНОВЫЕ СИСТЕМНЫЕ СЛОВА (RESET, SWITCH, SoCKET)
+      const matrixWords = [
+        { word: 'RESET', x: Math.floor(cols * 0.5), y: 8 },
+        { word: 'SWITCH', x: Math.floor(cols * 0.58), y: 12 },
+        { word: 'SoCKET', x: Math.floor(cols * 0.45), y: 19 }
+      ];
+      matrixWords.forEach((mw) => {
+        ctx.fillStyle = 'rgba(25, 45, 95, 0.28)';
+        ctx.fillText(mw.word, mw.x * CELL_W, mw.y * CELL_H);
+      });
+
+      // Мелкие мерцающие точки на фоне
+      for (let r = 0; r < baseGroundRow; r += 2) {
+        for (let c = 0; c < cols; c += 3) {
+          if ((c * 17 + r * 31) % 100 < 5) {
+            ctx.fillStyle = 'rgba(30, 60, 130, 0.15)';
             ctx.fillText('.', c * CELL_W, r * CELL_H);
           }
         }
       }
 
-      // Луна
-      const moonCol = cols - 14;
-      ctx.fillStyle = '#e0f2fe';
-      ['  .---.  ', ' /     \\ ', '|  (o)  |', ' \\     / ', "  '---'  "].forEach((l, i) =>
-        ctx.fillText(l, moonCol * CELL_W, (3 + i) * CELL_H)
-      );
-
-      // Ели привязаны к высоте рельефа
-      const baseMenuGround = Math.floor(rows * 0.5);
-      for (let c = 2; c < cols - 8; c += 14) {
-        const treeElevation = getGroundElevation(c, baseMenuGround);
-        const tree = TREE_TEMPLATES[c % 3];
-        ctx.fillStyle = '#0b192e';
-        tree.forEach((line, li) => {
-          ctx.fillText(line, c * CELL_W, (treeElevation - tree.length + li) * CELL_H);
-        });
-      }
-
-      // Земля
-      for (let c = 0; c < cols; c++) {
-        const gStart = getGroundElevation(c, baseMenuGround);
-        for (let r = gStart; r < rows; r++) {
-          const depth = r - gStart;
-          let ch = '#';
-          let color = '#081120';
-          if (depth === 0) { ch = GROUND_STAMPS[0][c % GROUND_STAMPS[0].length]; color = '#1e3a6a'; }
-          else if (depth === 1) { ch = GROUND_STAMPS[1][c % GROUND_STAMPS[1].length]; color = '#172d54'; }
-          else if (depth < 4) { ch = GROUND_STAMPS[2][c % GROUND_STAMPS[2].length]; color = '#10203d'; }
-          ctx.fillStyle = color;
-          ctx.fillText(ch, c * CELL_W, r * CELL_H);
-        }
-      }
-
-      animId = requestAnimationFrame(render);
-    };
-
-    render();
-    return () => cancelAnimationFrame(animId);
-  }, [screen]);
-
-  // ==========================================
-  // 2. РЕНДЕР КАТ-СЦЕНЫ В ИГРЕ
-  // ==========================================
-  useEffect(() => {
-    if (screen !== 'GAME') return;
-    const canvas = gameCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animId: number;
-    let tick = 0;
-
-    // Zoom out начинается с момента клика на Метриса
-    const targetZoom = (phase === 'WAIT_START' || phase === 'CAMP_PEACE' || phase === 'METRIS_ALERT') ? 1.0 : 0.65;
-
-    const render = () => {
-      tick++;
-
-      // Плавное уменьшение масштаба
-      setCurrentZoom((prev) => prev + (targetZoom - prev) * 0.04);
-
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const dpr = window.devicePixelRatio || 1;
-
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-
-      ctx.fillStyle = '#010309';
-      ctx.fillRect(0, 0, w, h);
-
-      // Ячейка сетки с учетом текущего зума
-      const CELL_W = 12 * currentZoom;
-      const CELL_H = 16 * currentZoom;
-
-      const cols = Math.ceil(w / CELL_W);
-      const rows = Math.ceil(h / CELL_H);
-      ctx.font = `${Math.floor(CELL_H)}px "Fira Code", monospace`;
-      ctx.textBaseline = 'top';
-
-      const baseGroundRow = Math.floor(rows * 0.70);
-      const fireWorldX = 26;
-      const fireScreenX = fireWorldX - cameraX;
-      const fireElevation = getGroundElevation(fireWorldX, baseGroundRow);
-
-      // 1. ДАЛЕКИЙ ЗАМОК
-      for (let rep = -10; rep < cols + 50; rep += KINGDOM_SPIRES[0].length) {
-        KINGDOM_SPIRES.forEach((line, li) => {
-          for (let ci = 0; ci < line.length; ci++) {
-            const ch = line[ci];
-            if (ch === ' ') continue;
-            ctx.fillStyle = '#0c172e';
-            ctx.fillText(ch, (rep + ci - cameraX * 0.25) * CELL_W, (baseGroundRow - 15 + li) * CELL_H);
-          }
-        });
-      }
-
-      // 2. ДАЛЬНИЕ ЕЛИ
-      for (let wc = 0; wc < 150; wc += 12) {
-        const sc = wc - cameraX;
-        if (sc < -15 || sc > cols + 15) continue;
-        const groundY = getGroundElevation(wc, baseGroundRow);
-        const tree = TREE_TEMPLATES[wc % 3];
-        tree.forEach((tLine, li) => {
-          for (let ci = 0; ci < tLine.length; ci++) {
-            const ch = tLine[ci];
-            if (ch === ' ') continue;
-            ctx.fillStyle = '#0d1a2d';
-            ctx.fillText(ch, (sc + ci) * CELL_W, (groundY - tree.length + li) * CELL_H);
-          }
-        });
-      }
-
-      // 3. ЗЕМЛЯ И СВЕТ КОСТРА (РЕЛЬЕФ С ГЛУБИНОЙ)
-      const fireLightRadius = 18 + Math.sin(tick * 0.08) * 2;
+      // 2. ВОЛНИСТЫЙ РЕЛЬЕФ КРАТЕРА ИЗ БУКВ (y+a*p+G*r+)
       for (let sc = 0; sc < cols; sc++) {
-        const wc = sc + cameraX;
-        const gRow = getGroundElevation(wc, baseGroundRow);
-
+        const gRow = getGroundElevation(sc, baseGroundRow);
         for (let r = gRow; r < rows; r++) {
           const depth = r - gRow;
-          const distToFire = Math.sqrt(Math.pow(wc - fireWorldX, 2) + Math.pow((r - fireElevation) * 1.5, 2));
+          const lineStr = CRATER_GROUND_SYMBOLS[depth % CRATER_GROUND_SYMBOLS.length];
+          const ch = lineStr[sc % lineStr.length];
 
-          let ch = '#';
-          if (depth === 0) ch = ['=', '~', '^', '-'][Math.abs(Math.floor(wc)) % 4];
-          else if (depth === 1) ch = ['%', '*', '#'][Math.abs(Math.floor(wc)) % 3];
+          // Фиолетово-синяя палитра с подсветкой гребней
+          let col = '#1e2238';
+          if (depth === 0) col = '#4c5270';
+          else if (depth === 1) col = '#343854';
+          else if (depth < 4) col = '#22253d';
 
-          let rCol = 14, gCol = 28, bCol = 60;
-          if (distToFire < fireLightRadius) {
-            const p = Math.pow(1 - distToFire / fireLightRadius, 1.4);
-            rCol = Math.min(255, Math.floor(rCol + p * 230));
-            gCol = Math.min(200, Math.floor(gCol + p * 110));
-            bCol = Math.floor(bCol * (1 - p * 0.8));
-          }
-
-          ctx.fillStyle = `rgb(${rCol}, ${gCol}, ${bCol})`;
+          ctx.fillStyle = col;
           ctx.fillText(ch, sc * CELL_W, r * CELL_H);
         }
       }
 
-      // 4. КОСТЕР (ЕСЛИ В ПОЛЕ ЗРЕНИЯ)
-      if (fireScreenX > -10 && fireScreenX < cols + 10) {
-        const flames = [
-          ['   ( )   ', '  ( * )  ', ' ( ^ * ) ', ' /=====\\ '],
-          ['  ( * )  ', ' ( ^ * ) ', '  ( ^ )  ', ' /=====\\ '],
-          ['  ( ^ )  ', ' ( * ^ ) ', '  ( * )  ', ' /=====\\ ']
-        ];
-        const fireF = flames[Math.floor(tick / 6) % flames.length];
-        fireF.forEach((fLine, li) => {
-          for (let ci = 0; ci < fLine.length; ci++) {
-            const ch = fLine[ci];
-            if (ch === ' ') continue;
-            ctx.fillStyle = ch === '*' ? '#fef08a' : (ch === '^' ? '#ff3b00' : '#f97316');
-            ctx.fillText(ch, (fireScreenX - 4 + ci) * CELL_W, (fireElevation - 3 + li) * CELL_H);
-          }
-        });
-      }
-
-      // 5. СИНИЕ КУСТЫ СПРАВА (ПОСТОЯННО НАХОДЯТСЯ В МИРЕ НА X = 90)
-      const bushWorldX = 90;
-      const bushScreenX = bushWorldX - cameraX;
-      const bushElevation = getGroundElevation(bushWorldX, baseGroundRow);
-
-      // Шевелятся только в фазе ожидания клика. После клика ЗАМИРАЮТ!
-      const isBushShake = phase === 'BUSH_SHAKING';
-      const shakeDX = isBushShake ? Math.sin(tick * 0.45) * 0.5 : 0;
-
-      BLUE_BUSH_MODEL.forEach((bLine, li) => {
-        for (let ci = 0; ci < bLine.length; ci++) {
-          const ch = bLine[ci];
+      // 3. БОСС ХАРПИЯ (HARPY CRATER)
+      const bossShakeX = isBossHurt ? (Math.random() - 0.5) * 0.8 : 0;
+      HARPY_CRATER_BOSS.forEach((lineObj, li) => {
+        for (let ci = 0; ci < lineObj.text.length; ci++) {
+          const ch = lineObj.text[ci];
           if (ch === ' ') continue;
-          // Ночные синие оттенки кустов
-          ctx.fillStyle = (ch === '#' || ch === ':') ? '#1e3a8a' : '#172554';
-          ctx.fillText(ch, (bushScreenX + ci + shakeDX) * CELL_W, (bushElevation - BLUE_BUSH_MODEL.length + li) * CELL_H);
-        }
-      });
 
-      // Восклицательный знак над кустами (пока они шевелятся)
-      if (phase === 'BUSH_SHAKING' && Math.sin(tick * 0.12) > 0) {
-        ctx.fillStyle = '#ff2222';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 8;
-        ctx.fillText('[ ! ]', (bushScreenX + 3) * CELL_W, (bushElevation - 5) * CELL_H);
-        ctx.shadowBlur = 0;
-      }
-
-      // 6. ГОБЛИНЫ (<o>, /#\, l l + МЕЧ НАПРАВЛЕН ВЛЕВО НА ИГРОКА)
-      if (phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY') {
-        // Дистанция выхода из кустов: главный гоблин останавливается на X = 74
-        // Это оставляет просторный разрыв (арену) между отрядом и монстрами
-        const targetGobX = bushWorldX - 16;
-        const currentGobX = bushWorldX - goblinEmergeProgress * 16;
-        const currentGobScrX = currentGobX - cameraX;
-        const currentGobElev = getGroundElevation(currentGobX, baseGroundRow);
-
-        const gobModel = phase === 'GOBLINS_EMERGE' ? GOBLIN_MODEL.leap : GOBLIN_MODEL.idle;
-
-        // Главный гоблин (повернут влево)
-        gobModel.forEach((line, li) => {
-          for (let ci = 0; ci < line.length; ci++) {
-            const ch = line[ci];
-            if (ch === ' ') continue;
-            ctx.fillStyle = (ch === '-' || ch === '/') ? GOBLIN_MODEL.swordColor : GOBLIN_MODEL.color;
-            ctx.fillText(ch, (currentGobScrX + ci) * CELL_W, (currentGobElev - gobModel.length + li) * CELL_H);
-          }
-        });
-
-        // 2 гоблина сзади у кустов (тоже смотрят влево)
-        if (phase === 'HEROES_READY') {
-          const g2Elev = getGroundElevation(targetGobX + 7, baseGroundRow);
-          const g3Elev = getGroundElevation(targetGobX + 13, baseGroundRow);
-
-          GOBLIN_MODEL.idle.forEach((line, li) => {
-            for (let ci = 0; ci < line.length; ci++) {
-              const ch = line[ci];
-              if (ch === ' ') continue;
-              ctx.fillStyle = (ch === '-' || ch === '/') ? GOBLIN_MODEL.swordColor : '#4d7c0f';
-              ctx.fillText(ch, (targetGobX + 7 - cameraX + ci) * CELL_W, (g2Elev - 1 - GOBLIN_MODEL.idle.length + li) * CELL_H);
-              ctx.fillText(ch, (targetGobX + 13 - cameraX + ci) * CELL_W, (g3Elev - GOBLIN_MODEL.idle.length + li) * CELL_H);
-            }
-          });
-        }
-      }
-
-      // 7. СТРОЙ ГЕРОЕВ (2 РЯДА СО СМЕЩЕНИЕМ И ГЛУБИНОЙ)
-      // До диалога: сидят у огня в детальных позах.
-      // После отдаления:
-      // ВТОРОЙ РЯД (ДАЛЬНИЙ/ВЫШЕ): находится левее (-X) и выше по рельефу (-Y):
-      //   - Opal:   colOffset: -16, rowOffset: -2
-      //   - Huggie: colOffset: -8,  rowOffset: -2
-      // ПЕРВЫЙ РЯД (БЛИЖНИЙ/НИЖЕ): выдвинут дальше вправо (+X) и ниже по рельефу (+Y):
-      //   - Justin: colOffset: -10, rowOffset: +2
-      //   - Metris: colOffset: -2,  rowOffset: +2
-      const tacticalFormation = [
-        // Верхний/дальний ряд (выше, позади)
-        { key: 'Opal',   colOffset: -16, rowOffset: -2, campCol: fireWorldX - 12 },
-        { key: 'Huggie', colOffset: -8,  rowOffset: -2, campCol: fireWorldX - 7  },
-        // Нижний/ближний ряд (ниже, впереди)
-        { key: 'Justin', colOffset: -10, rowOffset: 2,  campCol: fireWorldX + 6  },
-        { key: 'Metris', colOffset: -2,  rowOffset: 2,  campCol: fireWorldX + 11 }
-      ];
-
-      const isTactical = phase === 'WALKING' || phase === 'BUSH_SHAKING' || phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY';
-      const walkStep = Math.floor(tick / 6) % 2;
-      const isSwordDrawn = phase === 'HEROES_READY';
-
-      // Сортировка по Y: сначала рендерим верхний ряд, затем нижний (реальный объем и глубина)
-      const sortedFormation = [...tacticalFormation].sort((a, b) => a.rowOffset - b.rowOffset);
-
-      sortedFormation.forEach((f) => {
-        const heroDetail = HERO_MODELS[f.key];
-        const heroTactical = TACTICAL_HERO_MODELS[f.key];
-
-        let wX: number;
-        let groundY: number;
-        let sprite: string[];
-
-        if (!isTactical) {
-          // У костра: крупные детальные позы
-          wX = f.campCol;
-          groundY = getGroundElevation(wX, baseGroundRow);
-          sprite = (phase === 'METRIS_ALERT' || phase === 'DIALOG' || phase === 'CRUMBLING') && f.key === 'Metris'
-            ? heroDetail.standingBreathe[Math.floor(tick / 18) % 2]
-            : heroDetail.sitting[Math.floor(tick / 50) % 2];
-        } else {
-          // В тактическом строю: o /#\ L L, смотрят вправо, стоят на разной глубине
-          wX = fireWorldX + partyWalkDist + f.colOffset;
-          groundY = getGroundElevation(wX, baseGroundRow) + f.rowOffset;
-
-          if (phase === 'WALKING') {
-            sprite = heroTactical.walk[walkStep];
-          } else if (isSwordDrawn) {
-            sprite = heroTactical.swordReady; // Меч на изготовку!
+          // Подсветка глаз 0 0 белым
+          if (li === 1 && (ch === '0')) {
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 6;
           } else {
-            sprite = heroTactical.idle;
+            ctx.fillStyle = lineObj.color;
+            ctx.shadowColor = lineObj.color;
+            ctx.shadowBlur = 4;
           }
-        }
-
-        const sX = wX - cameraX;
-        sprite.forEach((line, li) => {
-          for (let ci = 0; ci < line.length; ci++) {
-            const ch = line[ci];
-            if (ch === ' ') continue;
-            ctx.fillStyle = (ch === '-' || ch === '/') && isTactical ? '#e2e8f0' : heroDetail.color;
-            ctx.fillText(ch, (sX + ci) * CELL_W, (groundY - sprite.length + li) * CELL_H);
-          }
-        });
-
-        // Восклицательный знак над Метрисом у огня
-        if (f.key === 'Metris' && phase === 'METRIS_ALERT' && Math.sin(tick * 0.1) > -0.2) {
-          ctx.fillStyle = '#ff2222';
-          ctx.shadowColor = '#ff0000';
-          ctx.shadowBlur = 8;
-          ctx.fillText('[ ! ]', (sX + 1) * CELL_W, (groundY - sprite.length - 2) * CELL_H);
+          ctx.fillText(ch, (bossCol + ci + bossShakeX) * CELL_W, (bossRow + li) * CELL_H);
           ctx.shadowBlur = 0;
         }
       });
 
-      // 8. ОСЫПАЮЩИЕСЯ БУКВЫ
-      if (crumbleParticles.length > 0) {
-        crumbleParticles.forEach((p) => {
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vy += 0.28;
-          p.alpha -= 0.016;
+      // Искры F P Q L E над головой босса при получении урона
+      if (isBossHurt) {
+        const sparks = ['F', 'P', 'Q', 'L', 'E', '9', '*'];
+        for (let i = 0; i < 12; i++) {
+          const sx = bossCol + 6 + (Math.random() - 0.5) * 8;
+          const sy = bossRow - 4 + (Math.random() - 0.5) * 4;
+          ctx.fillStyle = '#ffea00';
+          ctx.fillText(sparks[i % sparks.length], sx * CELL_W, sy * CELL_H);
+        }
+      }
 
-          if (p.alpha > 0) {
-            ctx.fillStyle = `rgba(34, 197, 94, ${p.alpha})`;
-            ctx.font = '12px "Press Start 2P", monospace';
-            ctx.fillText(p.char, p.x, p.y);
+      // 4. ГЕРОИ НА ПОЛЕ БОЯ
+      party.forEach((hero, idx) => {
+        const hElevation = getGroundElevation(hero.worldX, baseGroundRow) + hero.worldYOffset;
+        const isActive = idx === activeHeroIdx;
+
+        // Если герой активен — рисуем рамку таргета как в референсе
+        if (isActive) {
+          ctx.fillStyle = '#ff8800';
+          ctx.shadowColor = '#ff8800';
+          ctx.shadowBlur = 5;
+
+          // Углы рамки
+          ctx.fillText('+--   --+', (hero.worldX - 2) * CELL_W, (hElevation - 4) * CELL_H);
+          ctx.fillText('|       |', (hero.worldX - 2) * CELL_W, (hElevation - 3) * CELL_H);
+          ctx.fillText('|       |', (hero.worldX - 2) * CELL_W, (hElevation - 2) * CELL_H);
+          ctx.fillText('+--   --+', (hero.worldX - 2) * CELL_W, (hElevation - 0) * CELL_H);
+
+          // Имя и HP рядом
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(hero.name, (hero.worldX + 7) * CELL_W, (hElevation - 3) * CELL_H);
+          ctx.fillStyle = '#22c55e';
+          ctx.fillText(`${hero.hp}/${hero.maxHp}`, (hero.worldX + 7) * CELL_W, (hElevation - 2) * CELL_H);
+          ctx.shadowBlur = 0;
+        } else {
+          // Имя и HP неактивных героев внизу
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = `${CELL_H * 0.85}px "Fira Code", monospace`;
+          ctx.fillText(hero.name, (hero.worldX - 1) * CELL_W, (hElevation + 1) * CELL_H);
+          ctx.fillStyle = hero.hp < 60 ? '#ef4444' : '#22c55e';
+          ctx.fillText(`${hero.hp}/${hero.maxHp}`, (hero.worldX - 1) * CELL_W, (hElevation + 2) * CELL_H);
+          ctx.font = `${CELL_H}px "Fira Code", monospace`;
+        }
+
+        // Фигурка героя
+        ctx.fillStyle = hero.color;
+        ctx.shadowColor = hero.color;
+        ctx.shadowBlur = 3;
+        ctx.fillText(hero.charHead, hero.worldX * CELL_W, (hElevation - 3) * CELL_H);
+        ctx.fillText(hero.charBody, hero.worldX * CELL_W, (hElevation - 2) * CELL_H);
+        ctx.fillText(hero.charLegs, hero.worldX * CELL_W, (hElevation - 1) * CELL_H);
+        ctx.shadowBlur = 0;
+      });
+
+      // 5. ПОЛЕТ НАДПИСИ "A  T  T  A  C  K" К БОССУ
+      if (attackLettersT >= 0) {
+        const letters = ['A', 'T', 'T', 'A', 'C', 'K'];
+        const startX = activeHero.worldX + 4;
+        const startY = getGroundElevation(activeHero.worldX, baseGroundRow) - 2;
+        const targetX = bossCol + 4;
+        const targetY = bossRow + 4;
+
+        letters.forEach((char, li) => {
+          const letterDelay = li * 0.08;
+          const letterProgress = Math.max(0, Math.min(1, (attackLettersT - letterDelay) / 0.6));
+          if (letterProgress > 0 && letterProgress < 1) {
+            // Параболическая траектория
+            const curX = startX + (targetX - startX) * letterProgress;
+            const curY = startY + (targetY - startY) * letterProgress - Math.sin(letterProgress * Math.PI) * 4;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 8;
+            ctx.fillText(char, curX * CELL_W, curY * CELL_H);
+            ctx.shadowBlur = 0;
           }
         });
       }
+
+      // 6. ВСПЛЫВАЮЩИЙ УРОН
+      floatingDamages.forEach((fd) => {
+        ctx.fillStyle = fd.color;
+        ctx.shadowColor = fd.color;
+        ctx.shadowBlur = 8;
+        ctx.font = `bold ${CELL_H * 1.2}px "Fira Code", monospace`;
+        ctx.fillText(fd.text, fd.x * CELL_W, fd.y * CELL_H);
+        ctx.shadowBlur = 0;
+        ctx.font = `${CELL_H}px "Fira Code", monospace`;
+      });
 
       animId = requestAnimationFrame(render);
     };
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [screen, phase, cameraX, partyWalkDist, goblinEmergeProgress, crumbleParticles, currentZoom]);
-
-  // Тапы
-  const handleGameClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (phase === 'WAIT_START') {
-      setPhase('CAMP_PEACE');
-      return;
-    }
-    if (phase === 'METRIS_ALERT') {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      if (Math.abs(clickX - window.innerWidth * 0.58) < 140) {
-        setPhase('DIALOG');
-        setDialogText('Metris: Я что-то слышал... надо проверить кусты');
-      }
-      return;
-    }
-    // Клик по кустам: кусты мгновенно замирают, гоблины вылезают
-    if (phase === 'BUSH_SHAKING') {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      if (Math.abs(clickX - window.innerWidth * 0.70) < 160) {
-        setPhase('GOBLINS_EMERGE');
-      }
-    }
-  };
+  }, [party, activeHeroIdx, bossHp, isBossHurt, attackLettersT, floatingDamages]);
 
   return (
-    <div className="bm-viewport">
+    <div className="battle-viewport">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fira+Code:wght@700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
-        .bm-viewport {
+        .battle-viewport {
           position: relative;
           width: 100vw;
           height: 100vh;
           overflow: hidden;
-          background: #000;
+          background: #02040b;
+          font-family: 'Fira Code', monospace;
+          color: #fff;
           user-select: none;
           touch-action: none;
         }
 
-        .fade-overlay {
+        /* КАНВАС БОЕВОЙ СЦЕНЫ */
+        .battle-canvas {
           position: absolute;
           inset: 0;
-          background: #000;
-          z-index: 100;
+          width: 100%;
+          height: 100%;
+          z-index: 1;
+        }
+
+        /* CRT СКАНЛАЙНЫ */
+        .crt-scanlines {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+          background-size: 100% 3px;
           pointer-events: none;
-          transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 5;
         }
 
-        .portrait-lock {
-          display: none;
-        }
-        @media (orientation: portrait) {
-          .portrait-lock {
-            position: fixed;
-            inset: 0;
-            background: #02040a;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Press Start 2P', monospace;
-            color: #00f0ff;
-            text-align: center;
-            padding: 24px;
-            line-height: 1.8;
-          }
-        }
-
-        /* МЕНЮ */
-        .menu-layer {
+        /* СЛОЙ UI ВЕРХА И НИЗА */
+        .ui-hud-layer {
           position: absolute;
           inset: 0;
           z-index: 10;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding-top: 20px;
-        }
-        .big-logo {
-          max-height: clamp(120px, 38vh, 240px);
-          max-width: 90vw;
-          object-fit: contain;
-          margin-bottom: clamp(15px, 4vh, 35px);
-          filter: drop-shadow(0 0 30px rgba(0, 240, 255, 0.4));
-        }
-        .menu-list {
-          width: 100vw;
-          display: flex;
-          flex-direction: column;
-          gap: clamp(4px, 1.2vh, 10px);
-        }
-        .console-row {
-          width: 100vw;
-          height: clamp(38px, 8vh, 52px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Press Start 2P', monospace;
-          font-size: clamp(11px, 2.4vh, 15px);
-          cursor: pointer;
-          color: #94a3b8;
-          background: transparent;
-          transition: background 0.12s, color 0.12s;
-        }
-        .console-row.active {
-          background: rgba(0, 240, 255, 0.18);
-          color: #00f0ff;
-          text-shadow: 0 0 12px #00f0ff, 0 0 25px rgba(0, 240, 255, 0.8);
-          box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.15);
-        }
-        .console-row.disabled {
-          color: #334155;
-          cursor: not-allowed;
-        }
-
-        .bottom-hint {
-          position: absolute;
-          bottom: 24px;
-          width: 100%;
-          text-align: center;
-          font-family: 'Press Start 2P', monospace;
-          font-size: 11px;
-          color: #00f0ff;
-          text-shadow: 0 0 8px #00f0ff;
           pointer-events: none;
-          z-index: 30;
-          animation: pulse 1.8s infinite alternate;
-        }
-        @keyframes pulse {
-          0% { opacity: 0.3; }
-          100% { opacity: 1; }
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 8px 14px;
         }
 
-        /* ЧИСТЫЙ ПИКСЕЛЬНЫЙ ДИАЛОГ */
-        .pixel-dialog-wrapper {
-          position: absolute;
-          bottom: 40px;
-          left: 8%;
-          right: 8%;
-          z-index: 40;
+        .hud-top {
           display: flex;
-          align-items: center;
           justify-content: space-between;
+          align-items: flex-start;
+          width: 100%;
+        }
+
+        /* ЛЕВАЯ ВЕРХНЯЯ ЧАСТЬ: ДАННЫЕ ОРУЖИЯ И МЕНЮ СПОСОБНОСТЕЙ */
+        .weapon-header {
+          font-size: 13px;
+          color: #22c55e;
+          text-shadow: 0 0 5px #22c55e;
+          margin-bottom: 6px;
+        }
+
+        .action-columns {
+          display: flex;
+          gap: 28px;
           pointer-events: auto;
         }
-        .pixel-speech {
-          font-family: 'Press Start 2P', monospace;
-          font-size: 12px;
-          color: #4ade80;
-          text-shadow: 0 0 10px #22c55e, 0 0 20px rgba(34, 197, 94, 0.6);
-          line-height: 1.6;
-        }
-        .pixel-next {
-          font-family: 'Press Start 2P', monospace;
-          font-size: 11px;
-          color: #facc15;
-          text-shadow: 0 0 8px #eab308;
-          cursor: pointer;
-          margin-left: 20px;
-          white-space: nowrap;
-          animation: pulse 1s infinite alternate;
+
+        .menu-col {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
 
-        .alert-banner {
-          position: absolute;
-          top: 20px;
-          width: 100%;
-          text-align: center;
-          font-family: 'Press Start 2P', monospace;
+        .menu-action-btn {
+          background: transparent;
+          border: none;
+          color: #e2e8f0;
+          font-family: 'Fira Code', monospace;
           font-size: 13px;
-          color: #ff3333;
-          text-shadow: 0 0 12px #ff0000;
-          z-index: 50;
+          text-align: left;
+          cursor: pointer;
+          padding: 2px 6px;
+          transition: all 0.1s;
+        }
+
+        .menu-action-btn.active {
+          color: #ff9900;
+          text-shadow: 0 0 8px #ff9900;
+        }
+
+        .menu-action-btn:active {
+          background: #ff9900;
+          color: #000;
+        }
+
+        /* ЦЕНТР: НАЗВАНИЕ ЛОКАЦИИ */
+        .crater-title {
+          font-size: 14px;
+          color: #38bdf8;
+          text-shadow: 0 0 8px #0284c7;
+          letter-spacing: 1px;
+        }
+
+        /* ПРАВЫЙ ВЕРХ: КНОПКИ CONSOLE И HACK */
+        .hud-top-right {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          pointer-events: auto;
+        }
+
+        .bracket-box-btn {
+          background: rgba(10, 20, 40, 0.7);
+          border: 1px solid #ff9900;
+          color: #ff9900;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: bold;
+          padding: 4px 10px;
+          cursor: pointer;
+          box-shadow: 0 0 8px rgba(255, 153, 0, 0.3);
+        }
+
+        .bracket-box-btn.hack {
+          border-color: #22c55e;
+          color: #22c55e;
+          box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+        }
+
+        /* НИЖНЯЯ ПАНЕЛЬ: ТАЙМЛАЙН ОЧЕРЕДИ ХОДОВ И HP БОССА */
+        .hud-bottom {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          width: 100%;
+          border-top: 1px solid rgba(56, 189, 248, 0.2);
+          padding-top: 6px;
+          background: rgba(2, 6, 18, 0.85);
+        }
+
+        .timeline-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .timeline-chips {
+          display: flex;
+          gap: 8px;
+          font-size: 13px;
+        }
+
+        .timeline-chip {
+          padding: 2px 4px;
+        }
+
+        .timeline-chip.active {
+          color: #ffaa00;
+          text-shadow: 0 0 8px #ffaa00;
+          border-bottom: 2px solid #ffaa00;
+        }
+
+        .timeline-chip.boss {
+          color: #ef4444;
+          text-shadow: 0 0 8px #ef4444;
+        }
+
+        .ping-line {
+          font-size: 11px;
+          color: #f97316;
+        }
+
+        /* ПРАВЫЙ НИЖНИЙ УГОЛ: HP БОССА И БОМБА */
+        .boss-stats-corner {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          pointer-events: auto;
+        }
+
+        .boss-hp-gauge {
+          font-size: 14px;
+          font-weight: bold;
+          color: #22c55e;
+          text-shadow: 0 0 8px #22c55e;
+        }
+
+        .bomb-slot {
+          border: 1px dashed #ef4444;
+          padding: 4px 8px;
+          font-size: 10px;
+          color: #ef4444;
+          text-align: center;
+          line-height: 1.2;
+          cursor: pointer;
         }
       `}</style>
 
-      <div className="fade-overlay" style={{ opacity: fadeOpacity }} />
+      {/* Сканирующие линии CRT */}
+      <div className="crt-scanlines" />
 
-      <div className="portrait-lock">
-        <div>[ ! ] ПОВЕРНИТЕ ЭКРАН</div>
-        <div style={{ fontSize: '10px', marginTop: '16px', color: '#64748b' }}>
-          BEGINNING MENTION ТРЕБУЕТ ГОРИЗОНТАЛЬНЫЙ РЕЖИМ
-        </div>
-      </div>
+      {/* Канвас рендера сцены */}
+      <canvas ref={canvasRef} className="battle-canvas" />
 
-      {screen === 'MENU' && (
-        <>
-          <canvas ref={menuCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-          <div className="menu-layer">
-            <img
-              src="/basiclogo.png"
-              alt="BeginningMention"
-              className="big-logo"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-            <div className="menu-list">
-              <div
-                className={`console-row ${selectedIdx === 0 ? 'active' : ''}`}
-                onPointerEnter={() => setSelectedIdx(0)}
-                onClick={handleStartGame}
-              >
-                {selectedIdx === 0 ? '> НОВАЯ ЭКСПЕДИЦИЯ' : '  НОВАЯ ЭКСПЕДИЦИЯ'}
+      {/* ИНТЕРФЕЙС EFFULGENCE RPG */}
+      <div className="ui-hud-layer">
+        {/* ВЕРХНЯЯ ЧАСТЬ */}
+        <div className="hud-top">
+          {/* ЛЕВО: ОРУЖИЕ И МЕНЮ СПОСОБНОСТЕЙ */}
+          <div>
+            <div className="weapon-header">
+              {activeHero.name} &nbsp; {activeHero.weapon} &nbsp; | Tab X | INFO [Ctrl_RPM View]--
+            </div>
+
+            <div className="action-columns">
+              {/* Левый столбец команд */}
+              <div className="menu-col">
+                <button
+                  className={`menu-action-btn ${actionCol === 'LEFT' && actionRow === 0 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('LEFT');
+                    setActionRow(0);
+                    triggerAttack();
+                  }}
+                >
+                  &gt;&gt;&gt; Throw
+                </button>
+                <button
+                  className={`menu-action-btn ${actionCol === 'LEFT' && actionRow === 1 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('LEFT');
+                    setActionRow(1);
+                    triggerAttack();
+                  }}
+                >
+                  &nbsp;&nbsp;&nbsp;&nbsp;Multi-Target Calc
+                </button>
+                <button
+                  className={`menu-action-btn ${actionCol === 'LEFT' && actionRow === 2 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('LEFT');
+                    setActionRow(2);
+                    triggerAttack();
+                  }}
+                >
+                  &nbsp;&nbsp;&nbsp;&nbsp;Unique: Shot
+                </button>
+                <button
+                  className={`menu-action-btn ${actionCol === 'LEFT' && actionRow === 3 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('LEFT');
+                    setActionRow(3);
+                    triggerAttack();
+                  }}
+                >
+                  &nbsp;&nbsp;&nbsp;&nbsp;Shield Burst (7)
+                </button>
               </div>
-              <div
-                className={`console-row ${!hasSave ? 'disabled' : ''} ${selectedIdx === 1 ? 'active' : ''}`}
-                onPointerEnter={() => setSelectedIdx(1)}
-              >
-                {selectedIdx === 1 ? '> ЗАГРУЗКИ (LOCKED)' : '  ЗАГРУЗКИ (LOCKED)'}
-              </div>
-              <div
-                className={`console-row ${selectedIdx === 2 ? 'active' : ''}`}
-                onPointerEnter={() => setSelectedIdx(2)}
-              >
-                {selectedIdx === 2 ? '> НАСТРОЙКИ' : '  НАСТРОЙКИ'}
+
+              {/* Правый столбец команд */}
+              <div className="menu-col">
+                <button
+                  className={`menu-action-btn ${actionCol === 'RIGHT' && actionRow === 0 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('RIGHT');
+                    setActionRow(0);
+                    setActiveHeroIdx((prev) => (prev + 1) % party.length);
+                  }}
+                >
+                  &nbsp;&nbsp;&nbsp;&nbsp;Skip Turn
+                </button>
+                <button
+                  className={`menu-action-btn ${actionCol === 'RIGHT' && actionRow === 1 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('RIGHT');
+                    setActionRow(1);
+                    setParty((prev) =>
+                      prev.map((h, i) => (i === activeHeroIdx ? { ...h, worldX: h.worldX + 4 } : h))
+                    );
+                  }}
+                >
+                  &gt; Move Forward
+                </button>
+                <button
+                  className={`menu-action-btn ${actionCol === 'RIGHT' && actionRow === 2 ? 'active' : ''}`}
+                  onClick={() => {
+                    setActionCol('RIGHT');
+                    setActionRow(2);
+                    setParty((prev) =>
+                      prev.map((h, i) => (i === activeHeroIdx ? { ...h, worldX: h.worldX - 4 } : h))
+                    );
+                  }}
+                >
+                  &nbsp;&nbsp;Move Backward
+                </button>
               </div>
             </div>
           </div>
-        </>
-      )}
 
-      {screen === 'GAME' && (
-        <>
-          <canvas
-            ref={gameCanvasRef}
-            onClick={handleGameClick}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
-          />
+          {/* ЦЕНТР: НАЗВАНИЕ БОССА / ЛОКАЦИИ */}
+          <div className="crater-title">
+            Harpy Crater (80%)
+          </div>
 
-          {phase === 'WAIT_START' && (
-            <div className="bottom-hint">&gt;&gt; TAP TO START &lt;&lt;</div>
-          )}
+          {/* ПРАВО: КОНСОЛЬ И ХАК */}
+          <div className="hud-top-right">
+            <button className="bracket-box-btn" onClick={() => alert('[CONSOLE] Доступ к терминалу открыт.')}>
+              +=============+<br />
+              | (Y) Console |<br />
+              +=============+
+            </button>
+            <button className="bracket-box-btn hack" onClick={() => triggerAttack()}>
+              +=============+<br />
+              | H(Ξ) : HACK |<br />
+              +=============+
+            </button>
+          </div>
+        </div>
 
-          {phase === 'METRIS_ALERT' && (
-            <div className="bottom-hint" style={{ color: '#22c55e', textShadow: '0 0 10px #22c55e' }}>
-              Кликни на Метриса, чтобы узнать что случилось
+        {/* НИЖНЯЯ ЧАСТЬ: ОЧЕРЕДЬ ТАЙМЛАЙНА И ЗДОРОВЬЕ БОССА */}
+        <div className="hud-bottom">
+          <div className="timeline-wrapper">
+            <div className="timeline-chips">
+              <span className={`timeline-chip ${activeHeroIdx === 0 ? 'active' : ''}`}>[Michael]</span>
+              <span>+</span>
+              <span className={`timeline-chip ${activeHeroIdx === 1 ? 'active' : ''}`}>[Jane]</span>
+              <span>+</span>
+              <span className={`timeline-chip ${activeHeroIdx === 2 ? 'active' : ''}`}>[Sebastian]</span>
+              <span>+</span>
+              <span className={`timeline-chip ${activeHeroIdx === 3 ? 'active' : ''}`}>[Demid]</span>
+              <span>[Sparrow]</span>
+              <span className="timeline-chip boss">&gt;[&lt;\Q/&gt;]&lt;</span>
             </div>
-          )}
-
-          {phase === 'BUSH_SHAKING' && (
-            <div className="bottom-hint" style={{ color: '#38bdf8', textShadow: '0 0 10px #38bdf8' }}>
-              Кликни на синие кусты
+            <div className="ping-line">
+              PING: &nbsp; 16 &nbsp;&nbsp; 17 &nbsp;&nbsp; 40 &nbsp;&nbsp; 42 &nbsp;&nbsp; 94 &nbsp;&nbsp; 106 &nbsp;&nbsp; 112
             </div>
-          )}
+          </div>
 
-          {(phase === 'GOBLINS_EMERGE' || phase === 'HEROES_READY') && (
-            <div className="alert-banner">
-              [ ! ] ВНИМАНИЕ: ЗАСАДА ГОБЛИНОВ-МАРОДЕРОВ [ ! ]
+          {/* ЗДОРОВЬЕ БОССА И СЛОТ БОМБЫ */}
+          <div className="boss-stats-corner">
+            <div className="boss-hp-gauge">
+              {bossHp} / {bossMaxHp}
             </div>
-          )}
-
-          {phase === 'DIALOG' && (
-            <div className="pixel-dialog-wrapper">
-              <div className="pixel-speech">{dialogText}</div>
-              <div className="pixel-next" onClick={handleNextDialog}>
-                [ ДАЛЕЕ &gt;&gt; ]
-              </div>
+            <div className="bomb-slot" onClick={() => triggerAttack()}>
+              T T T &nbsp; Glyph<br />
+              ||||| &nbsp; Bomb<br />
+              +===+ &nbsp; Del/Ξ
             </div>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
