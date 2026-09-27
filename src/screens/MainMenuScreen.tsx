@@ -850,10 +850,16 @@ export const MainMenuScreen: React.FC = () => {
             {/* ГЛАВНАЯ КНОПКА ДЕЙСТВИЯ */}
             <div className="hud-interactive">
               <button
-                className={`main-action-btn ${actionMode.toLowerCase()}`}
+                className={`main-action-btn ${actionMode === 'HEAL_SELECT' ? 'use' : actionMode.toLowerCase()}`}
                 onClick={handleMainActionButton}
               >
-                {actionMode === 'BUILD' ? 'BUILD' : (actionMode === 'USE' || actionMode === 'HEAL_SELECT' ? 'USE' : (actionMode === 'MOVE' ? 'ACCEPT' : 'ATTACK'))}
+                {actionMode === 'BUILD'
+                  ? 'BUILD'
+                  : actionMode === 'HEAL_SELECT'
+                  ? 'USE'
+                  : actionMode === 'MOVE'
+                  ? 'ACCEPT'
+                  : 'ATTACK'}
               </button>
             </div>
           </div>
