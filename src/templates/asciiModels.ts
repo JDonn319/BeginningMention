@@ -1,203 +1,101 @@
 // ========================================================
-// БИБЛИОТЕКА МОДЕЛЕЙ (BEGINNING MENTION)
+// БИБЛИОТЕКА МОДЕЛЕЙ И UI (EFFULGENCE BATTLE SYSTEM)
 // ========================================================
 
-export interface CharacterModel {
+export interface BattleHero {
+  id: string;
   name: string;
+  weapon: string;
+  hp: number;
+  maxHp: number;
   color: string;
-  glow: string;
-  sitting: string[][];
-  standingBreathe: string[][];
+  worldX: number;
+  worldYOffset: number;
+  charHead: string;
+  charBody: string;
+  charLegs: string;
+  initiative: number;
 }
 
-// 1. ДЕТАЛЬНЫЕ МОДЕЛИ У КОСТРА (ПРИБЛИЖЕННАЯ КАМЕРА)
-export const HERO_MODELS: Record<string, CharacterModel> = {
-  Opal: {
-    name: 'Opal',
-    color: '#ef4444',
-    glow: '#f87171',
-    sitting: [
-      ['  (o)  ', ' /|#|\\ ', '_/   \\_'],
-      ['  (o)  ', ' /|#|> ', '_/   \\_']
-    ],
-    standingBreathe: [
-      ['  [o]  ', ' /|#|\\ ', '  | |  ', ' /   \\ '],
-      ['  [o]  ', ' (|#|) ', '  | |  ', ' /   \\ ']
-    ]
+export const INITIAL_PARTY: BattleHero[] = [
+  {
+    id: 'michael',
+    name: 'Michael',
+    weapon: 'Plasma Grenades 3/5',
+    hp: 210,
+    maxHp: 210,
+    color: '#ff9900',
+    worldX: 18,
+    worldYOffset: 0,
+    charHead: ' o ',
+    charBody: '<#>',
+    charLegs: '/ \\',
+    initiative: 17
   },
-  Huggie: {
-    name: 'Huggie',
-    color: '#3b82f6',
-    glow: '#60a5fa',
-    sitting: [
-      [' <(o)  ', ' <|#|\\ ', '_/   \\_'],
-      [' <(o)  ', ' <|#|/ ', '_/   \\_']
-    ],
-    standingBreathe: [
-      [' <[o]  ', ' /|#|\\ ', '  | |  ', ' /   \\ '],
-      [' <[o]  ', ' (|#|) ', '  | |  ', ' /   \\ ']
-    ]
+  {
+    id: 'jane',
+    name: 'Jane',
+    weapon: 'Pulse SMG 12/20',
+    hp: 140,
+    maxHp: 140,
+    color: '#ff7700',
+    worldX: 28,
+    worldYOffset: 3,
+    charHead: ' o ',
+    charBody: '<#\\',
+    charLegs: '/ \\',
+    initiative: 94
   },
-  Justin: {
-    name: 'Justin',
+  {
+    id: 'sebastian',
+    name: 'Sebastian',
+    weapon: 'Short Blaster (6/7)',
+    hp: 120,
+    maxHp: 130,
+    color: '#c084fc',
+    worldX: 38,
+    worldYOffset: -2,
+    charHead: ' e ',
+    charBody: '|%\\',
+    charLegs: '/> ',
+    initiative: 106
+  },
+  {
+    id: 'demid',
+    name: 'Demid',
+    weapon: 'Heavy Railgun 1/1',
+    hp: 55,
+    maxHp: 140,
     color: '#f97316',
-    glow: '#fb923c',
-    sitting: [
-      ['  (o)> ', ' /|#|> ', '_/   \\_'],
-      ['  (o)> ', ' /|#|\\ ', '_/   \\_']
-    ],
-    standingBreathe: [
-      ['  [o]> ', ' /|#|\\ ', '  | |  ', ' /   \\ '],
-      ['  [o]> ', ' (|#|) ', '  | |  ', ' /   \\ ']
-    ]
-  },
-  Metris: {
-    name: 'Metris',
-    color: '#22c55e',
-    glow: '#4ade80',
-    sitting: [
-      [' <(o)> ', ' -|#|- ', '_/   \\_'],
-      [' <(o)> ', ' /|#|\\ ', '_/   \\_']
-    ],
-    standingBreathe: [
-      [' <[o]> ', ' -|#|- ', '  | |  ', ' /   \\ '],
-      [' <[o]> ', ' (|#|) ', '  | |  ', ' /   \\ ']
-    ]
+    worldX: 48,
+    worldYOffset: 2,
+    charHead: ' p ',
+    charBody: '/@\\',
+    charLegs: 'LL ',
+    initiative: 112
   }
-};
-
-// 2. МОДЕЛИ ГЕРОЕВ ПОСЛЕ ОТДАЛЕНИЯ (ГОЛОВА "o", ТЕЛО "/#\", НОГИ "L L")
-// ПОВЕРНУТЫ ВПРАВО, СМЕНА ПОЗЫ МЕЧА
-export const TACTICAL_HERO_MODELS: Record<string, {
-  idle: string[];
-  swordReady: string[];
-  walk: string[][];
-}> = {
-  Opal: {
-    idle: [
-      ' o   ',
-      '/#\\  ',
-      'L L  '
-    ],
-    swordReady: [
-      ' o   ',
-      '/#\\--', // Меч направлен вправо
-      'L L  '
-    ],
-    walk: [
-      [' o   ', '/#\\> ', 'L |  '],
-      [' o   ', '<#\\  ', '| L  ']
-    ]
-  },
-  Huggie: {
-    idle: [
-      ' o   ',
-      '/#\\  ',
-      'L L  '
-    ],
-    swordReady: [
-      ' o   ',
-      '/#\\--',
-      'L L  '
-    ],
-    walk: [
-      [' o   ', '/#\\> ', 'L |  '],
-      [' o   ', '<#\\  ', '| L  ']
-    ]
-  },
-  Justin: {
-    idle: [
-      ' o   ',
-      '/#\\  ',
-      'L L  '
-    ],
-    swordReady: [
-      ' o   ',
-      '/#\\--',
-      'L L  '
-    ],
-    walk: [
-      [' o   ', '/#\\> ', 'L |  '],
-      [' o   ', '<#\\  ', '| L  ']
-    ]
-  },
-  Metris: {
-    idle: [
-      ' o   ',
-      '/#\\  ',
-      'L L  '
-    ],
-    swordReady: [
-      ' o   ',
-      '/#\\--',
-      'L L  '
-    ],
-    walk: [
-      [' o   ', '/#\\> ', 'L |  '],
-      [' o   ', '<#\\  ', '| L  ']
-    ]
-  }
-};
-
-// 3. ГОБЛИНЫ: ГОЛОВА "<o>", ТЕЛО "/#\", НОГИ "l l" + МЕЧ
-// ПОВЕРНУТЫ ВЛЕВО (К ИГРОКУ), МЕЧ СМОТРИТ ВЛЕВО
-export const GOBLIN_MODEL = {
-  name: 'Goblin',
-  color: '#84cc16',
-  swordColor: '#94a3b8',
-  idle: [
-    ' <o> ',
-    '--/#\\', // Меч направлен влево
-    ' l l '
-  ],
-  leap: [
-    ' <o>/',
-    '--/#\\',
-    ' l l '
-  ]
-};
-
-// 4. СИНИЕ КУСТЫ (ПОСТОЯННАЯ СТРУКТУРА)
-export const BLUE_BUSH_MODEL = [
-  '   .:::..   ',
-  ' .::#####::.',
-  ':###########:'
 ];
 
-export const TREE_TEMPLATES = [
-  [
-    '   /\\   ',
-    '  /**\\  ',
-    ' /****\\ ',
-    '/******\\',
-    '  ||||  '
-  ],
-  [
-    '    /\\    ',
-    '   //\\\\   ',
-    '  ///\\\\\\  ',
-    ' ////\\\\\\\\ ',
-    '    ||    '
-  ],
-  [
-    '   |^|   ',
-    '  /|+|\\  ',
-    ' /++|++\\ ',
-    '   |||   '
-  ]
+// ASCII-модель босса "Харпия" с посимвольной цветовой картой
+export const HARPY_CRATER_BOSS = [
+  { text: '       /\\..==/\\       ..::*  ', color: '#ff2233' },
+  { text: '       |  0  0  |    .::::*  ', color: '#ff2233' },
+  { text: '     *============*  ::..:   ', color: '#ffaa00' },
+  { text: '    *##############* ::..    ', color: '#ffcc00' },
+  { text: '   *################* :.. /| ', color: '#ffaa00' },
+  { text: '    *==============*  :  //  ', color: '#ff9900' },
+  { text: '      *==========*      //   ', color: '#ff7700' },
+  { text: '   \\\\\\  GG     GG  /// //    ', color: '#ff5500' },
+  { text: '    \\\\\\ ||     || /// //     ', color: '#3b82f6' },
+  { text: '       (((     )))   //      ', color: '#2563eb' },
+  { text: '       LLL     LLL  //       ', color: '#1d4ed8' },
+  { text: '       ###     ### //        ', color: '#1e40af' }
 ];
 
-export const KINGDOM_SPIRES = [
-  '     /\\                 /\\                        /\\                 ',
-  '    /  \\      /|\\      /  \\       |\\  /|         /  \\      /|\\       ',
-  '   / /\\ \\    / | \\    / /\\ \\     /  \\/  \\       / /\\ \\    / | \\      ',
-  '  | [  ] |  | [ ] |  | [  ] |   | [][][] |     | [  ] |  | [ ] |     ',
-  '  |      |--|     |--|      |---|        |-----|      |--|     |---- '
-];
-
-export const GROUND_STAMPS = [
-  '~^~..~~~=~=~..~~~^~...~~~~=~~~..~~~^~..~~~=~=~',
-  '#%##%#%%##%%###%%%##%#%%%###%%##%%####%%#%##%#',
-  '##############################################',
-  '++===++---===+++===---===+++++===---===+++++++'
+// Символьный паттерн почвы из кратера (y, a, p, G, r, +)
+export const CRATER_GROUND_SYMBOLS = [
+  'y+a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+',
+  'G+r+gx+p+  y+a   r+  p+G+r+   +a   G+    p+    y  t   Cr   +p   G+r+a  +p+        ',
+  '+a+p+       G+r+a  +p+        y+   p+    +a+p+  y+a*p+G+r+  +a+p y+a*p+G*r+y*a*p+G',
+  'r+y+a*p+G*  p+G+r  y+a*p+G*   a+p  y+a*p  +G+  r+y*a*p+G+r  y+a*p +a+p+  G+r+gx+p+'
 ];
