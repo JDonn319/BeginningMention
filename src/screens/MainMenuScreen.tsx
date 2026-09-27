@@ -1,468 +1,362 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-// Ретро-иконки для кнопок (SVG, чтобы не зависеть от npm-пакетов)
-const Icons = {
-  NewGame: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM12 9l3 3h-2v4h-2v-4H9l3-3z"/>
-    </svg>
-  ),
-  LoadGame: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-    </svg>
-  ),
-  Settings: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.48.48 0 0 0 13.91 2h-3.82c-.24 0-.44.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.47c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.82c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-    </svg>
-  ),
-  Lock: () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-    </svg>
-  )
-};
-
-// Кадры пламени костра
-const FIRE_FRAMES = [
-  ["    ( )    ", "   ( * )   ", "  ( ^ * )  ", "  /=====\\  "],
-  ["   ( * )   ", "  ( ^ )    ", " ( * ^ )   ", "  /=====\\  "],
-  ["   ( ^ )   ", "  ( * ^ )  ", "   ( * )   ", "  /=====\\  "],
-];
+// Разрешение символьной сетки (Колонки x Строки)
+const COLS = 95;
+const ROWS = 45;
 
 export const MainMenuScreen: React.FC = () => {
-  const [fireFrame, setFireFrame] = useState(0);
-  const [hasSaveGame, setHasSaveGame] = useState(false);
-  const [logoError, setLogoError] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [selectedBtn, setSelectedBtn] = useState<number>(0);
+  const [hasSave] = useState<boolean>(() => !!localStorage.getItem('bm_save'));
 
-  // Проверка сохраненной игры (Загрузки активны только если есть сохранение)
   useEffect(() => {
-    const save = localStorage.getItem('bm_savegame');
-    setHasSaveGame(!!save);
-  }, []);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  // Анимация пламени
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFireFrame((prev) => (prev + 1) % FIRE_FRAMES.length);
-    }, 180);
-    return () => clearInterval(interval);
-  }, []);
+    let animationFrameId: number;
+    let tick = 0;
+
+    // Генерация статичного фонового шума из матричных слов и глифов (как в Effulgence RPG)
+    const bgWords = ['SOCKET', 'RESET', 'SWITCH', 'CRATER', 'NULL', 'MEM_0x', 'SECT', 'VOID'];
+    const bgGrid: { char: string; baseAlpha: number }[][] = [];
+    for (let y = 0; y < ROWS; y++) {
+      bgGrid[y] = [];
+      for (let x = 0; x < COLS; x++) {
+        const rand = Math.random();
+        let char = ' ';
+        let baseAlpha = 0.05 + Math.random() * 0.08;
+
+        if (rand < 0.12) {
+          char = ['.', ':', '+', 'x', '-', '~', '^', '`'][Math.floor(Math.random() * 8)];
+        } else if (rand < 0.14) {
+          char = ['0', '1', 'F', 'A', '8'][Math.floor(Math.random() * 5)];
+        }
+        bgGrid[y][x] = { char, baseAlpha };
+      }
+    }
+
+    // Впечатываем системные слова в фон
+    for (let i = 0; i < 18; i++) {
+      const word = bgWords[Math.floor(Math.random() * bgWords.length)];
+      const wx = Math.floor(Math.random() * (COLS - word.length - 2));
+      const wy = Math.floor(Math.random() * (ROWS - 15));
+      for (let c = 0; c < word.length; c++) {
+        bgGrid[wy][wx + c] = { char: word[c], baseAlpha: 0.12 };
+      }
+    }
+
+    // Искры костра
+    const sparks: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
+
+    // Главный цикл рендеринга символьного буфера
+    const render = () => {
+      tick++;
+
+      // Подгоняем размер под экран без искажения пропорций
+      const dpr = window.devicePixelRatio || 1;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+      }
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
+
+      ctx.fillStyle = '#01030a';
+      ctx.fillRect(0, 0, width, height);
+
+      const cellW = width / COLS;
+      const cellH = height / ROWS;
+      const fontSize = Math.floor(cellH * 1.05);
+      ctx.font = `${fontSize}px "Fira Code", monospace`;
+      ctx.textBaseline = 'top';
+
+      // Позиция костра (в координатах сетки)
+      const fireX = Math.floor(COLS / 2);
+      const fireY = ROWS - 12;
+
+      // Источник света (пульсирует как пламя)
+      const lightRadius = 18 + Math.sin(tick * 0.15) * 2 + Math.cos(tick * 0.08) * 1.5;
+
+      // Спавн искр
+      if (tick % 3 === 0) {
+        sparks.push({
+          x: fireX + (Math.random() - 0.5) * 3,
+          y: fireY - 1,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: -0.2 - Math.random() * 0.3,
+          life: 1.0
+        });
+      }
+
+      // 1. РЕНДЕР ФОНА И ОСВЕЩЕНИЯ КАЖДОЙ КЛЕТКИ
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const cell = bgGrid[y][x];
+          let char = cell.char;
+          
+          // Расчет расстояния до костра для поклеточного света
+          const dx = x - fireX;
+          const dy = (y - fireY) * 1.8; // Коррекция пропорций по вертикали
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          let r = 20, g = 50, b = 110; // Базовый глубокий сине-черный ночной тон
+          let alpha = cell.baseAlpha;
+
+          // Динамический теплый свет
+          if (dist < lightRadius) {
+            const intensity = Math.pow(1 - dist / lightRadius, 1.8);
+            r = Math.min(255, Math.floor(r + intensity * 235));
+            g = Math.min(200, Math.floor(g + intensity * 110));
+            b = Math.floor(b * (1 - intensity * 0.8));
+            alpha = Math.min(1, alpha + intensity * 0.7);
+          }
+
+          // Мерцание звезд вверху
+          if (y < 12 && char !== ' ') {
+            alpha += Math.sin(tick * 0.05 + x * 0.3 + y) * 0.08;
+          }
+
+          if (char !== ' ') {
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.max(0, alpha)})`;
+            ctx.fillText(char, x * cellW, y * cellH);
+          }
+        }
+      }
+
+      // 2. РЕЛЬЕФ КРАТЕРА / ЗЕМЛИ (многослойная символьная топография)
+      for (let x = 0; x < COLS; x++) {
+        const groundHeight = Math.floor(
+          Math.sin(x * 0.08) * 2.5 + Math.cos(x * 0.2) * 1.5 + (ROWS - 10)
+        );
+
+        for (let y = groundHeight; y < ROWS; y++) {
+          const depth = y - groundHeight;
+          let groundChar = '#';
+          if (depth === 0) groundChar = ['~', '^', '=', '.'][Math.abs(x) % 4];
+          else if (depth === 1) groundChar = ['%', '*', 'x'][Math.abs(x + y) % 3];
+          else if (depth === 2) groundChar = ['#', 'G', '8'][Math.abs(x * 2) % 3];
+
+          const dx = x - fireX;
+          const dy = (y - fireY) * 1.8;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          let gr = 15, gg = 38, gb = 85;
+          if (dist < lightRadius) {
+            const intensity = Math.pow(1 - dist / lightRadius, 1.5);
+            gr = Math.min(255, Math.floor(gr + intensity * 240));
+            gg = Math.min(200, Math.floor(gg + intensity * 100));
+            gb = Math.floor(gb * (1 - intensity * 0.9));
+          }
+
+          ctx.fillStyle = `rgb(${gr}, ${gg}, ${gb})`;
+          ctx.fillText(groundChar, x * cellW, y * cellH);
+        }
+      }
+
+      // 3. АНИМИРОВАННЫЙ КОСТЕР (символьные языки пламени)
+      const fireChars = ['^', '*', 'o', '(', ')', '/', '\\'];
+      for (let i = 0; i < 7; i++) {
+        const fx = fireX + (i % 3) - 1;
+        const fy = fireY - Math.floor(i / 3);
+        const fChar = fireChars[(tick + i) % fireChars.length];
+        
+        ctx.fillStyle = i > 4 ? '#ffffff' : (i > 2 ? '#ffea00' : '#ff4400');
+        ctx.shadowColor = '#ff2200';
+        ctx.shadowBlur = 10;
+        ctx.fillText(fChar, fx * cellW, fy * cellH);
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillStyle = '#653205';
+      ctx.fillText('=====', (fireX - 2) * cellW, (fireY + 1) * cellH);
+
+      // Искры
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx;
+        s.y += s.vy;
+        s.life -= 0.02;
+        if (s.life <= 0) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        ctx.fillStyle = `rgba(255, ${Math.floor(s.life * 200)}, 0, ${s.life})`;
+        ctx.fillText('`', s.x * cellW, s.y * cellH);
+      }
+
+      // 4. ТРИ ПЕРСОНАЖА У ОГНЯ (ASCII фигуры с отблесками)
+      const drawAsciiEntity = (lines: string[], gridX: number, gridY: number, colorSide: 'left' | 'right') => {
+        lines.forEach((line, lineIdx) => {
+          for (let cIdx = 0; cIdx < line.length; cIdx++) {
+            const ch = line[cIdx];
+            if (ch === ' ') continue;
+            
+            // Теплый контур со стороны костра, холодный с внешней
+            if (colorSide === 'left') {
+              ctx.fillStyle = cIdx >= line.length - 2 ? '#ffb703' : '#38bdf8';
+            } else {
+              ctx.fillStyle = cIdx <= 1 ? '#ffb703' : '#c084fc';
+            }
+            ctx.fillText(ch, (gridX + cIdx) * cellW, (gridY + lineIdx) * cellH);
+          }
+        });
+      };
+
+      // Персонаж 1 (слева от костра)
+      drawAsciiEntity(['  o  ', ' /|\\>', '_/ \\_'], fireX - 8, fireY - 1, 'left');
+
+      // Персонаж 2 (справа от костра с посохом)
+      drawAsciiEntity(['<o  |', ' |\\-|', '_/\\ |'], fireX + 5, fireY - 1, 'right');
+
+      // Персонаж 3 (сзади чуть выше)
+      drawAsciiEntity(['  o  ', ' (|) ', ' / \\ '], fireX - 2, fireY - 4, 'left');
+
+      // 5. ТЕРМИНАЛЬНЫЙ UI (Прямо поверх матрицы, рамки из ASCII)
+      const renderTerminalWindow = (
+        title: string,
+        lines: string[],
+        startX: number,
+        startY: number,
+        w: number
+      ) => {
+        // Рамка
+        ctx.fillStyle = '#00f0ff';
+        const topBar = '+' + `[ ${title} ]`.padEnd(w - 2, '-') + '+';
+        const botBar = '+' + '-'.repeat(w - 2) + '+';
+        ctx.fillText(topBar, startX * cellW, startY * cellH);
+
+        for (let i = 0; i < lines.length; i++) {
+          const cy = startY + 1 + i;
+          ctx.fillStyle = '#00f0ff';
+          ctx.fillText('|', startX * cellW, cy * cellH);
+          ctx.fillText('|', (startX + w - 1) * cellW, cy * cellH);
+
+          // Содержимое
+          ctx.fillStyle = lines[i].includes('>') ? '#ffee00' : (lines[i].includes('[X]') ? '#475569' : '#ffffff');
+          ctx.fillText(lines[i], (startX + 2) * cellW, cy * cellH);
+        }
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText(botBar, startX * cellW, (startY + lines.length + 1) * cellH);
+      };
+
+      // Верхний заголовок игры
+      const titleLines = [
+        '  ____  ______ _____ _____ _   _ _   _ _____ _   _  _____  ',
+        ' |  _ \\|  ____/ ____|_   _| \\ | | \\ | |_   _| \\ | |/ ____| ',
+        ' | |_) | |__ | |  __  | | |  \\| |  \\| | | | |  \\| | |  __  ',
+        ' |  _ <|  __|| | |_ | | | | . ` | . ` | | | | . ` | | |_ | ',
+        ' | |_) | |___| |__| |_| |_| |\\  | |\\  |_| |_| |\\  | |__| | ',
+        ' |____/|______\\_____|_____|_| \\_|_| \\_|_____|_| \\_|\\_____| '
+      ];
+      ctx.fillStyle = '#38bdf8';
+      ctx.shadowColor = '#0284c7';
+      ctx.shadowBlur = 12;
+      const titleStartX = Math.floor((COLS - 58) / 2);
+      titleLines.forEach((tl, idx) => {
+        ctx.fillText(tl, titleStartX * cellW, (2 + idx) * cellH);
+      });
+      ctx.shadowBlur = 0;
+
+      // Меню опций (низкие и широкие кнопки)
+      const menuWidth = 44;
+      const menuX = Math.floor((COLS - menuWidth) / 2);
+      const menuY = 10;
+      const menuItems = [
+        selectedBtn === 0 ? ' > [ 1 ] НОВАЯ ЭКСПЕДИЦИЯ <' : '   [ 1 ] НОВАЯ ЭКСПЕДИЦИЯ  ',
+        selectedBtn === 1
+          ? ' > [ 2 ] ПРОДОЛЖИТЬ ЗАПИСЬ <'
+          : (hasSave ? '   [ 2 ] ПРОДОЛЖИТЬ ЗАПИСЬ  ' : '   [X] НЕТ СОХРАНЕНИЙ (LOCKED)'),
+        selectedBtn === 2 ? ' > [ 3 ] СИСТЕМНЫЕ НАСТРОЙКИ <' : '   [ 3 ] СИСТЕМНЫЕ НАСТРОЙКИ'
+      ];
+      renderTerminalWindow('TERMINAL_EXEC v1.09', menuItems, menuX, menuY, menuWidth);
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [selectedBtn, hasSave]);
 
   return (
-    <div className="main-menu-container">
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#000', overflow: 'hidden' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fira+Code:wght@400;700&display=swap');
-
-        .main-menu-container {
-          position: relative;
-          width: 100vw;
-          height: 100vh;
-          background: radial-gradient(circle at 50% 30%, #081126 0%, #030611 70%, #010206 100%);
-          overflow: hidden;
-          font-family: 'Fira Code', monospace;
-          color: #fff;
-          user-select: none;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        /* Звезды и луна */
-        .sky-stars {
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@700&display=swap');
+        
+        /* CRT полосы */
+        .scanlines {
           position: absolute;
           inset: 0;
+          background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%);
+          background-size: 100% 3px;
           pointer-events: none;
-          background-image: 
-            radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0,0,0,0)),
-            radial-gradient(1.5px 1.5px at 150px 70px, #a5c9eb, rgba(0,0,0,0)),
-            radial-gradient(1px 1px at 280px 40px, #ffffff, rgba(0,0,0,0)),
-            radial-gradient(2px 2px at 420px 110px, #7dd3fc, rgba(0,0,0,0)),
-            radial-gradient(1px 1px at 600px 50px, #ffffff, rgba(0,0,0,0)),
-            radial-gradient(1.5px 1.5px at 780px 95px, #c084fc, rgba(0,0,0,0)),
-            radial-gradient(1px 1px at 920px 35px, #ffffff, rgba(0,0,0,0));
-          background-repeat: repeat;
-          background-size: 1000px 300px;
-          animation: starsTwinkle 4s ease-in-out infinite alternate;
+          z-index: 50;
         }
 
-        @keyframes starsTwinkle {
-          0% { opacity: 0.6; }
-          100% { opacity: 1; }
-        }
-
-        .moon {
+        /* Тач-зоны для мобильного горизонтального экрана */
+        .touch-nav {
           position: absolute;
-          top: 8%;
-          right: 14%;
-          font-size: 11px;
-          color: #e0f2fe;
-          text-shadow: 0 0 25px #38bdf8, 0 0 50px #0284c7;
-          line-height: 1.1;
-          pointer-events: none;
-        }
-
-        /* Задний лес */
-        .forest-layer {
-          position: absolute;
-          bottom: 22%;
-          width: 100%;
-          color: #121c38;
-          font-size: 13px;
-          line-height: 1.1;
-          white-space: pre;
-          overflow: hidden;
-          text-align: center;
-          pointer-events: none;
-          text-shadow: 0 0 8px rgba(15, 23, 42, 0.8);
-        }
-
-        /* Синеватый рельеф земли */
-        .ground-layer {
-          position: absolute;
-          bottom: 0;
-          width: 100%;
-          height: 25%;
-          color: #3b82f6;
-          font-size: 14px;
-          line-height: 1.15;
-          white-space: pre;
-          background: linear-gradient(180deg, rgba(8, 20, 50, 0.9) 0%, rgba(3, 7, 18, 0.98) 70%);
-          border-top: 1px solid rgba(59, 130, 246, 0.3);
-          box-shadow: 0 -10px 30px rgba(30, 58, 138, 0.4);
-          text-shadow: 0 0 6px #1d4ed8;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-          align-items: center;
-        }
-
-        /* ДИНАМИЧЕСКИЙ СВЕТ КОСТРА */
-        .campfire-light {
-          position: absolute;
-          bottom: 12%;
+          bottom: 12px;
           left: 50%;
           transform: translateX(-50%);
-          width: 320px;
-          height: 180px;
-          background: radial-gradient(ellipse at center, rgba(255, 120, 30, 0.35) 0%, rgba(255, 60, 0, 0.12) 45%, transparent 75%);
-          pointer-events: none;
-          z-index: 5;
-          animation: lightFlicker 0.25s infinite alternate ease-in-out;
-        }
-
-        @keyframes lightFlicker {
-          0% { transform: translateX(-50%) scale(0.96); opacity: 0.8; }
-          100% { transform: translateX(-50%) scale(1.05); opacity: 1; }
-        }
-
-        /* Сцена у костра */
-        .campsite {
-          position: absolute;
-          bottom: 15%;
           display: flex;
-          align-items: flex-end;
-          gap: 30px;
-          z-index: 10;
+          gap: 20px;
+          z-index: 60;
         }
 
-        .character {
-          font-size: 15px;
-          line-height: 1.15;
-          text-align: center;
-          transition: filter 0.2s;
-        }
-
-        .char-left {
-          color: #fed7aa;
-          text-shadow: 0 0 8px rgba(249, 115, 22, 0.8);
-          animation: charBreath 3s infinite ease-in-out;
-        }
-
-        .char-right {
-          color: #bfdbfe;
-          text-shadow: 0 0 8px rgba(96, 165, 250, 0.8);
-          animation: charBreath 3.5s infinite ease-in-out 0.5s;
-        }
-
-        .char-rear {
-          color: #cbd5e1;
-          margin-bottom: 10px;
-          text-shadow: 0 0 6px rgba(255, 100, 30, 0.5);
-          animation: charBreath 4s infinite ease-in-out 1s;
-        }
-
-        @keyframes charBreath {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
-        }
-
-        /* Сам костер */
-        .campfire {
-          color: #f97316;
-          font-size: 15px;
+        .touch-btn {
+          background: rgba(8, 20, 45, 0.7);
+          border: 1px solid #00f0ff;
+          color: #00f0ff;
+          font-family: 'Fira Code', monospace;
+          font-size: 14px;
           font-weight: bold;
-          line-height: 1.15;
-          text-align: center;
-          text-shadow: 0 0 10px #ea580c, 0 0 20px #ef4444;
-          filter: drop-shadow(0 0 15px rgba(234, 88, 12, 0.9));
-        }
-
-        .fire-core {
-          color: #fef08a;
-          text-shadow: 0 0 8px #fef08a;
-        }
-
-        /* Искры */
-        .spark {
-          position: absolute;
-          width: 3px;
-          height: 3px;
-          background: #fde047;
-          box-shadow: 0 0 6px #f97316;
-          border-radius: 50%;
-          animation: riseSpark 1.8s infinite linear;
-        }
-        .spark-1 { left: 45%; animation-delay: 0.1s; }
-        .spark-2 { left: 52%; animation-delay: 0.6s; }
-        .spark-3 { left: 48%; animation-delay: 1.1s; }
-
-        @keyframes riseSpark {
-          0% { transform: translateY(0) scale(1); opacity: 1; }
-          100% { transform: translateY(-70px) scale(0.2); opacity: 0; }
-        }
-
-        /* ЛОГОТИП И МЕНЮ */
-        .ui-overlay {
-          position: relative;
-          z-index: 20;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          margin-top: 25px;
-          width: 100%;
-        }
-
-        .logo-img {
-          max-height: 130px;
-          max-width: 80%;
-          object-fit: contain;
-          filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.45));
-          animation: logoFloat 4s ease-in-out infinite;
-        }
-
-        .logo-fallback {
-          font-family: 'Press Start 2P', monospace;
-          font-size: 26px;
-          color: #38bdf8;
-          text-shadow: 0 0 10px #0284c7, 0 0 25px #0369a1;
-          letter-spacing: 2px;
-          text-align: center;
-          padding: 15px;
-          animation: logoFloat 4s ease-in-out infinite;
-        }
-
-        @keyframes logoFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
-
-        /* Кнопки меню: низкие и широкие */
-        .menu-buttons {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-top: 15px;
-        }
-
-        .btn-menu {
-          font-family: 'Press Start 2P', monospace;
-          font-size: 11px;
-          width: 320px;
-          height: 44px;
-          padding: 0 20px;
-          background: rgba(15, 23, 42, 0.75);
-          color: #e2e8f0;
-          border: 1.5px solid #38bdf8;
-          box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.2), 0 0 10px rgba(56, 189, 248, 0.25);
-          border-radius: 4px;
+          padding: 12px 28px;
+          border-radius: 2px;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          transition: all 0.15s ease;
-          text-transform: uppercase;
+          box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
         }
-
-        .btn-menu:hover:not(:disabled) {
-          background: #38bdf8;
-          color: #030712;
-          box-shadow: 0 0 20px #38bdf8;
-          transform: scale(1.02);
-        }
-
-        .btn-menu:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-
-        .btn-menu:disabled {
-          border-color: #334155;
-          color: #64748b;
-          background: rgba(15, 23, 42, 0.4);
-          box-shadow: none;
-          cursor: not-allowed;
-        }
-
-        /* Предупреждение для вертикального экрана на телефонах */
-        .rotate-notice {
-          display: none;
-        }
-        @media (orientation: portrait) {
-          .rotate-notice {
-            position: fixed;
-            inset: 0;
-            background: #020617;
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 12px;
-            color: #38bdf8;
-            text-align: center;
-            padding: 20px;
-            line-height: 1.8;
-          }
+        .touch-btn:active {
+          background: #00f0ff;
+          color: #000;
         }
       `}</style>
 
-      {/* Оверлей предупреждения повернуть экран */}
-      <div className="rotate-notice">
-        <div>⟲ ПОВЕРНИТЕ УСТРОЙСТВО</div>
-        <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '12px' }}>
-          BeginningMention создана для горизонтального режима
-        </div>
-      </div>
+      {/* Сканирующие полосы CRT монитора */}
+      <div className="scanlines" />
 
-      {/* Небо и звезды */}
-      <div className="sky-stars" />
+      {/* Символьный холст */}
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 
-      {/* Луна (ASCII) */}
-      <div className="moon">
-        {`   .---.
-  /     \\
-  | (o) |
-   \\   /
-    '-' `}
-      </div>
-
-      {/* Верхняя часть: Логотип и Кнопки */}
-      <div className="ui-overlay">
-        {!logoError ? (
-          <img
-            src="/basiclogo.png"
-            alt="BeginningMention"
-            className="logo-img"
-            onError={() => setLogoError(true)}
-          />
-        ) : (
-          <div className="logo-fallback">BEGINNING MENTION</div>
-        )}
-
-        <div className="menu-buttons">
-          <button
-            className="btn-menu"
-            onClick={() => alert('Начало новой экспедиции...')}
-          >
-            <span>Новая игра</span>
-            <Icons.NewGame />
-          </button>
-
-          <button
-            className="btn-menu"
-            disabled={!hasSaveGame}
-            title={!hasSaveGame ? 'Нет сохранений' : 'Загрузить игру'}
-            onClick={() => alert('Загрузка экспедиции...')}
-          >
-            <span>Загрузки</span>
-            {!hasSaveGame ? <Icons.Lock /> : <Icons.LoadGame />}
-          </button>
-
-          <button
-            className="btn-menu"
-            onClick={() => alert('Настройки игры...')}
-          >
-            <span>Настройки</span>
-            <Icons.Settings />
-          </button>
-        </div>
-      </div>
-
-      {/* Задний силуэт леса */}
-      <div className="forest-layer">
-        {`      /\\                 /\\         /\\                  /\\                /\\
-     /  \\    /\\         /  \\       /  \\    /\\          /  \\    /\\        /  \\
-    / /\\ \\  /  \\       / /\\ \\     / /\\ \\  /  \\        / /\\ \\  /  \\      / /\\ \\
-   / /  \\ \\/ /\\ \\     / /  \\ \\   / /  \\ \\/ /\\ \\      / /  \\ \\/ /\\ \\    / /  \\ \\
-  /_/ /\\ \\_\\/  \\ \\   /_/ /\\ \\_\\ /_/ /\\ \\_\\/  \\ \\    /_/ /\\ \\_\\/  \\ \\  /_/ /\\ \\_\\
-    ||  ||  |||||       ||  ||     ||  ||  |||||        ||  ||  |||||     ||  ||`}
-      </div>
-
-      {/* Динамический свет костра */}
-      <div className="campfire-light" />
-
-      {/* Сцена у костра с 3 персонажами */}
-      <div className="campsite">
-        {/* Персонаж 1 (слева, греет руки у огня) */}
-        <div className="character char-left">
-          <div>  o  </div>
-          <div> /|\_</div>
-          <div>_/ \_</div>
-        </div>
-
-        {/* Персонаж 2 (сзади, сидит и смотрит вдаль) */}
-        <div className="character char-rear">
-          <div> o </div>
-          <div>(|)</div>
-          <div>/ \</div>
-        </div>
-
-        {/* Сам костер с анимированными искрами */}
-        <div style={{ position: 'relative' }}>
-          <div className="spark spark-1" />
-          <div className="spark spark-2" />
-          <div className="spark spark-3" />
-          <div className="campfire">
-            {FIRE_FRAMES[fireFrame].map((line, idx) => (
-              <div key={idx}>
-                {line.split('*').map((seg, i, arr) => (
-                  <React.Fragment key={i}>
-                    {seg}
-                    {i < arr.length - 1 && <span className="fire-core">*</span>}
-                  </React.Fragment>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Персонаж 3 (справа, с оружием/посохом) */}
-        <div className="character char-right">
-          <div>  o  |</div>
-          <div>_/|\-|</div>
-          <div>_/ \_|</div>
-        </div>
-      </div>
-
-      {/* Синеватый рельеф земли из символов */}
-      <div className="ground-layer">
-        <div>{`~^~^..~~~=~=~..~~~^~...~~~~=~~~..~~~^~..~~~=~=~..~~~^~...~~~~=~~~..~~~^~..~~~=~=~..~~~^~...~~~~=~~~`}</div>
-        <div>{`#%##%#%%##%%###%%%##%#%%%###%%##%%####%%#%##%#%%##%%###%%%##%#%%%###%%##%%####%%#%##%#%%##%%###%%%`}</div>
-        <div>{`####################################################################################################`}</div>
-        <div>{`====================================================================================================`}</div>
+      {/* Сенсорные кнопки снизу для пальцев на iPhone */}
+      <div className="touch-nav">
+        <button
+          className="touch-btn"
+          onClick={() => setSelectedBtn((prev) => (prev > 0 ? prev - 1 : 2))}
+        >
+          ▲ ВВЕРХ
+        </button>
+        <button
+          className="touch-btn"
+          onClick={() => {
+            if (selectedBtn === 0) alert('Запуск протокола экспедиции...');
+            else if (selectedBtn === 1) {
+              if (hasSave) alert('Загрузка...');
+            } else alert('Настройки терминала...');
+          }}
+        >
+          [ ENTER ]
+        </button>
+        <button
+          className="touch-btn"
+          onClick={() => setSelectedBtn((prev) => (prev < 2 ? prev + 1 : 0))}
+        >
+          ▼ ВНИЗ
+        </button>
       </div>
     </div>
   );
