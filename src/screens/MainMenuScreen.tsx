@@ -256,10 +256,10 @@ export const MainMenuScreen: React.FC = () => {
       ctx.textBaseline = 'top';
 
       const groundRow = Math.floor(rows * 0.72);
-      const fireCol = Math.floor(cols * 0.38); // Костер слева по центру
+      const fireCol = Math.floor(cols * 0.38);
       const fireRow = groundRow - 1;
 
-      // 1. ДАЛЕКИЙ ЗАМОК НА ГОРИЗОНТЕ
+      // 1. ДАЛЕКИЙ ЗАМОК
       const kingdomRow = groundRow - 12;
       for (let rep = 0; rep < cols; rep += KINGDOM_SPIRES[0].length) {
         KINGDOM_SPIRES.forEach((line, li) => {
@@ -272,7 +272,7 @@ export const MainMenuScreen: React.FC = () => {
         });
       }
 
-      // 2. ЕЛИ И ЛЕС
+      // 2. ЕЛИ
       for (let c = 2; c < cols - 6; c += 11) {
         const tree = TREE_TEMPLATES[c % 3];
         tree.forEach((tLine, li) => {
@@ -309,7 +309,7 @@ export const MainMenuScreen: React.FC = () => {
         }
       }
 
-      // 4. ДЕТАЛИЗИРОВАННЫЙ БЫСТРЫЙ КОСТЕР
+      // 4. КОСТЕР
       const flames = [
         ['   ( )   ', '  ( * )  ', ' ( ^ * ) ', ' /=====\\ '],
         ['  ( * )  ', ' ( ^ * ) ', '  ( ^ )  ', ' /=====\\ '],
@@ -329,7 +329,7 @@ export const MainMenuScreen: React.FC = () => {
         }
       });
 
-      // 5. КУСТЫ СПРАВА
+      // 5. КУСТЫ
       const bushCol = cols - 16;
       const isShaking = phase === 'BUSH_SHAKING' || phase === 'HERO_APPROACH';
       const shakeOffset = isShaking ? Math.sin(tick * 0.4) * 0.5 : 0;
@@ -355,11 +355,10 @@ export const MainMenuScreen: React.FC = () => {
         }
       }
 
-      // 6. ГОБЛИНЫ (ПОЯВЛЯЮТСЯ ПРИ АМБУШЕ)
+      // 6. ГОБЛИНЫ
       if (phase === 'GOBLIN_AMBUSH' || phase === 'HEROES_RETREAT') {
         const gModel = phase === 'GOBLIN_AMBUSH' ? GOBLIN_MODEL.jump : GOBLIN_MODEL.idle;
 
-        // Главный прыгнувший гоблин
         gModel.forEach((line, li) => {
           ctx.fillStyle = GOBLIN_MODEL.color;
           ctx.shadowColor = GOBLIN_MODEL.glow;
@@ -367,7 +366,6 @@ export const MainMenuScreen: React.FC = () => {
           ctx.fillText(line, (bushCol - 7) * CELL_W, (groundRow - gModel.length + li) * CELL_H);
         });
 
-        // 2 гоблина сзади
         GOBLIN_MODEL.idle.forEach((line, li) => {
           ctx.fillStyle = '#4d7c0f';
           ctx.shadowBlur = 0;
@@ -377,7 +375,7 @@ export const MainMenuScreen: React.FC = () => {
         ctx.shadowBlur = 0;
       }
 
-      // 7. ЧЕТЫРЕ ГЕРОЯ (Opal, Huggie, Justin, Metris)
+      // 7. ГЕРОИ (Opal, Huggie, Justin, Metris)
       const heroesList = [
         { key: 'Opal', baseCol: fireCol - 12, walkOffset: -12 },
         { key: 'Huggie', baseCol: fireCol - 7, walkOffset: -8 },
@@ -394,28 +392,24 @@ export const MainMenuScreen: React.FC = () => {
         const hero = HERO_MODELS[h.key];
         let sprite: string[];
         let curCol = h.baseCol;
-        let isStanding = false;
 
         if (phase === 'WAIT_START' || phase === 'CAMP_PEACE') {
           sprite = hero.sitting[poseIdx];
         } else if (phase === 'METRIS_ALERT' || phase === 'DIALOG' || phase === 'CRUMBLING') {
           if (h.key === 'Metris') {
             sprite = hero.standingBreathe[breatheIdx];
-            isStanding = true;
           } else {
             sprite = hero.sitting[poseIdx];
           }
         } else if (phase === 'WALKING') {
           sprite = hero.walking[walkStepIdx];
           curCol = fireCol + h.walkOffset + partyWalkX;
-          isStanding = true;
         } else if (phase === 'BUSH_SHAKING' || phase === 'HERO_APPROACH' || phase === 'GOBLIN_AMBUSH' || phase === 'HEROES_RETREAT') {
           sprite = hero.standingBreathe[breatheIdx];
           curCol = fireCol + h.walkOffset + partyWalkX + retreatX;
           if (h.key === 'Metris' && phase === 'HERO_APPROACH') {
             curCol += 4;
           }
-          isStanding = true;
         } else {
           sprite = hero.standingBreathe[breatheIdx];
         }
@@ -434,7 +428,7 @@ export const MainMenuScreen: React.FC = () => {
         });
         ctx.shadowBlur = 0;
 
-        // ВОСКЛИЦАТЕЛЬНЫЙ ЗНАК НАД МЕТРИСОМ
+        // Восклицательный знак над Метрисом
         if (h.key === 'Metris' && phase === 'METRIS_ALERT') {
           const redBlink = Math.sin(tick * 0.08) > -0.2;
           if (redBlink) {
