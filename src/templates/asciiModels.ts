@@ -1,145 +1,169 @@
 // ========================================================
-// БИБЛИОТЕКА МОДЕЛЕЙ И НАВЫКОВ (BEGINNING MENTION)
+// БИБЛИОТЕКА МОДЕЛЕЙ И ДАННЫХ (BEGINNING MENTION)
 // ========================================================
 
 export interface HeroSkill {
   id: string;
   name: string;
-  type: 'ATTACK' | 'BUFF' | 'HEAL' | 'SPECIAL';
-  damage?: number;
-  cost?: number;
+  description: string;
+  type: 'ATTACK' | 'BUFF' | 'HEAL' | 'WALL';
+  cooldownMax: number;
 }
 
 export interface BattleHero {
   id: string;
   name: string;
-  weapon: string;
+  title: string;
+  role: string;
   hp: number;
   maxHp: number;
   color: string;
-  gridX: number;
-  rowOffset: number;
-  charHead: string;
-  charBody: string;
-  charLegs: string;
+  glow: string;
+  nodeIndex: number;
+  isDead: boolean;
+  hasTaunt: boolean;
+  tauntTimer: number;
   skills: HeroSkill[];
+  cooldowns: Record<string, number>;
+  weaponType: 'BLASTER' | 'ROCKET' | 'LOG' | 'RUNES' | 'SPEAR';
 }
 
-export const INITIAL_PARTY: BattleHero[] = [
+export const HEROES_CONFIG: BattleHero[] = [
+  {
+    id: 'josef',
+    name: 'Josef',
+    title: 'Void Gunner',
+    role: 'Attack / Range DPS',
+    hp: 120,
+    maxHp: 120,
+    color: '#c084fc',
+    glow: '#a855f7',
+    nodeIndex: 0,
+    isDead: false,
+    hasTaunt: false,
+    tauntTimer: 0,
+    weaponType: 'BLASTER',
+    cooldowns: { blaster: 0, rocket: 0 },
+    skills: [
+      { id: 'blaster', name: '>>> Бластер', description: 'Точный огонь. Голова: 20 крит, Тело: 11-15, Ноги: 6-10', type: 'ATTACK', cooldownMax: 0 },
+      { id: 'rocket', name: '    Ракетница', description: 'Массивный взрывной залп. Урон по площади 28-36. КД: 4', type: 'ATTACK', cooldownMax: 4 }
+    ]
+  },
   {
     id: 'michael',
     name: 'Michael',
-    weapon: 'Plasma Grenades 3/5',
-    hp: 210,
-    maxHp: 210,
-    color: '#ff9900',
-    gridX: 16,
-    rowOffset: 0,
-    charHead: ' o ',
-    charBody: '<#>',
-    charLegs: '/ \\',
+    title: 'Aegis Sentinel',
+    role: 'Heavy Tank',
+    hp: 240,
+    maxHp: 240,
+    color: '#3b82f6',
+    glow: '#60a5fa',
+    nodeIndex: 2,
+    isDead: false,
+    hasTaunt: false,
+    tauntTimer: 0,
+    weaponType: 'LOG',
+    cooldowns: { log: 0, wall: 0 },
     skills: [
-      { id: 'throw', name: '>>> Throw', type: 'ATTACK', damage: 95 },
-      { id: 'multi', name: '    Multi-Target Calc', type: 'BUFF' },
-      { id: 'shot',  name: '    Unique: Shot', type: 'ATTACK', damage: 70 },
-      { id: 'shield', name: '    Shield Burst (7)', type: 'SPECIAL', damage: 130 }
+      { id: 'log', name: '>>> Бросок бревна', description: 'Крутящееся бревно. Голова: 26-29, Тело/Ноги: 8-14', type: 'ATTACK', cooldownMax: 0 },
+      { id: 'wall', name: '    Стена-Щит', description: 'Возводит барьер на 1 ход. Дает провокацию босса на 2 хода. КД: 2', type: 'WALL', cooldownMax: 2 }
     ]
   },
   {
-    id: 'jane',
-    name: 'Jane',
-    weapon: 'Pulse SMG 12/20',
-    hp: 140,
-    maxHp: 140,
-    color: '#ff7700',
-    gridX: 25,
-    rowOffset: 3,
-    charHead: ' o ',
-    charBody: '<#\\',
-    charLegs: '/ \\',
+    id: 'kyle',
+    name: 'Kyle',
+    title: 'Rune Weaver',
+    role: 'Support / Healer',
+    hp: 135,
+    maxHp: 135,
+    color: '#22c55e',
+    glow: '#4ade80',
+    nodeIndex: 1,
+    isDead: false,
+    hasTaunt: false,
+    tauntTimer: 0,
+    weaponType: 'RUNES',
+    cooldowns: { runes: 0, silence: 0, revive: 0 },
     skills: [
-      { id: 'smg', name: '>>> Pulse SMG', type: 'ATTACK', damage: 80 },
-      { id: 'heal', name: '    Heal Matrix', type: 'HEAL' },
-      { id: 'overload', name: '    Overload Arc', type: 'ATTACK', damage: 90 },
-      { id: 'shield', name: '    Shield Burst (5)', type: 'SPECIAL', damage: 110 }
+      { id: 'runes', name: '>>> Атака рунами', description: '2-3 парящие руны. 5-8 урона за штуку', type: 'ATTACK', cooldownMax: 0 },
+      { id: 'silence', name: '    Запрет чар', description: 'Блокирует боссу все особые навыки на 1 ход. КД: 3', type: 'ATTACK', cooldownMax: 3 },
+      { id: 'revive', name: '    Восстановление', description: 'Лечит 40% HP живому (КД: 3) или воскрешает павшего (КД: 6)', type: 'HEAL', cooldownMax: 3 }
     ]
   },
   {
-    id: 'sebastian',
-    name: 'Sebastian',
-    weapon: 'Short Blaster (6/7)',
-    hp: 120,
+    id: 'artemis',
+    name: 'Artemis',
+    title: 'Horizon Lancer',
+    role: 'Sniper / Lancer',
+    hp: 130,
     maxHp: 130,
-    color: '#c084fc',
-    gridX: 34,
-    rowOffset: -2,
-    charHead: ' e ',
-    charBody: '|%\\',
-    charLegs: '/> ',
-    skills: [
-      { id: 'blaster', name: '>>> Short Blaster', type: 'ATTACK', damage: 75 },
-      { id: 'aim', name: '    Aim (+40%)', type: 'BUFF' },
-      { id: 'impulse', name: '    Impulse Wave', type: 'ATTACK', damage: 85 },
-      { id: 'burst', name: '    Shield Burst (6)', type: 'SPECIAL', damage: 115 }
-    ]
-  },
-  {
-    id: 'demid',
-    name: 'Demid',
-    weapon: 'Heavy Railgun 1/1',
-    hp: 55,
-    maxHp: 140,
     color: '#f97316',
-    gridX: 43,
-    rowOffset: 2,
-    charHead: ' p ',
-    charBody: '/@\\',
-    charLegs: 'LL ',
+    glow: '#fb923c',
+    nodeIndex: 3,
+    isDead: false,
+    hasTaunt: false,
+    tauntTimer: 0,
+    weaponType: 'SPEAR',
+    cooldowns: { spear: 0, bomb: 0 },
     skills: [
-      { id: 'railgun', name: '>>> Heavy Railgun', type: 'ATTACK', damage: 150 },
-      { id: 'scan', name: '    Weakpoint Scan', type: 'BUFF' },
-      { id: 'pierce', name: '    Armor Pierce', type: 'ATTACK', damage: 105 },
-      { id: 'burst', name: '    Core Discharge', type: 'SPECIAL', damage: 140 }
+      { id: 'spear', name: '>>> Бросок копья', description: 'Урон растет от дистанции! От 4 в упор до 38 издали', type: 'ATTACK', cooldownMax: 0 },
+      { id: 'bomb', name: '    Огненная бомба', description: 'Взрыв + горение: 10-12 урона 2 хода босса. КД: 3', type: 'ATTACK', cooldownMax: 3 }
     ]
   }
 ];
 
-// Кадры анимации босса (Харпии): 1 - Парение, 2 - Ударный выпад
-export const HARPY_FRAMES = {
-  idle: [
-    { text: '       /\\..==/\\       ..::*  ', color: '#ff2233' },
-    { text: '       |  0  0  |    .::::*  ', color: '#ff2233' },
-    { text: '     *============*  ::..:   ', color: '#ffaa00' },
-    { text: '    *##############* ::..    ', color: '#ffcc00' },
-    { text: '   *################* :.. /| ', color: '#ffaa00' },
-    { text: '    *==============*  :  //  ', color: '#ff9900' },
-    { text: '      *==========*      //   ', color: '#ff7700' },
-    { text: '   \\\\\\  GG     GG  /// //    ', color: '#ff5500' },
-    { text: '    \\\\\\ ||     || /// //     ', color: '#3b82f6' },
-    { text: '       (((     )))   //      ', color: '#2563eb' },
-    { text: '       LLL     LLL  //       ', color: '#1d4ed8' },
-    { text: '       ###     ### //        ', color: '#1e40af' }
-  ],
-  attack: [
-    { text: '      <<< /\\..==/\\ >>>       ', color: '#ff0033' },
-    { text: '      <<< | [0][0] | >>>     ', color: '#ffffff' },
-    { text: '    ===*============*===     ', color: '#ff3b00' },
-    { text: '   ===*##############*===    ', color: '#ff8800' },
-    { text: '  ===*################*=== /|', color: '#ffaa00' },
-    { text: '      *==============*   //  ', color: '#ff7700' },
-    { text: '    >>  GG ==== GG  <<  //   ', color: '#ff3300' },
-    { text: '       \\\\ ||  || //    //    ', color: '#2563eb' },
-    { text: '        (((    )))    //     ', color: '#1d4ed8' },
-    { text: '        LLL    LLL   //      ', color: '#1e40af' }
+// Спрайты оружия в руках
+export const WEAPON_RENDER: Record<string, string[]> = {
+  BLASTER: [' o ', '/|\\-', 'L L'],
+  ROCKET:  [' o ', '/|#==', 'L L'],
+  LOG:     [' o ', '/|#||', 'L L'],
+  RUNES:   [' o ', '/|\\*', 'L L'],
+  SPEAR:   [' o ', '/|\\--', 'L L']
+};
+
+// 4 способности босса для сводки (Dossier)
+export const BOSS_DOSSIER = {
+  name: 'Харпия Кратера (Harpy-0X)',
+  type: 'Летающий титан Бездны',
+  description: 'Древний биомеханический страж периметра кратера. Оснащен реактивными соплами, рунными крыльями и плазменным ядром.',
+  skills: [
+    { name: 'Когти Бездны', desc: 'Стремительное пике на одного героя. 20-28 физ. урона.' },
+    { name: 'Вопль Искажения', desc: 'Ударная волна по всему отряду на 12-16 урона.' },
+    { name: 'Плазменный луч ядра', desc: 'Прожигающий луч высокой мощности на 35-45 урона.' },
+    { name: 'Щит Эфира', desc: 'Покрывает корпус барьером поглощения урона на 100 HP.' }
   ]
 };
 
-// Рельефные символы кратера
+// Модель летающего босса с раскрытыми крыльями
+export const FLYING_HARPY_FRAMES = {
+  wingsUp: [
+    '    \\  /\\..==/\\  /     ',
+    '     \\ |  0  0  | /      ',
+    '  ====*============*==== ',
+    '   ==*##############*==  ',
+    '     *==============*    ',
+    '       GG ==== GG        ',
+    '       \\\\ ||  || //      ',
+    '        (((    )))       ',
+    '        LLL    LLL       '
+  ],
+  wingsDown: [
+    '       /\\..==/\\          ',
+    '       |  0  0  |        ',
+    '  // =*============*= \\\\ ',
+    ' // =*##############*= \\\\',
+    '     *==============*    ',
+    '     \\\\  GG    GG  //    ',
+    '      \\\\ ||    || //     ',
+    '        (((    )))       ',
+    '        LLL    LLL       '
+  ]
+};
+
 export const CRATER_GROUND_SYMBOLS = [
   'y+a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+y*a*p+G*r+y*a*p+G+r+',
   'G+r+gx+p+  y+a   r+  p+G+r+   +a   G+    p+    y  t   Cr   +p   G+r+a  +p+        ',
-  '+a+p+       G+r+a  +p+        y+   p+    +a+p+  y+a*p+G+r+  +a+p y+a*p+G*r+y*a*p+G',
-  'r+y+a*p+G*  p+G+r  y+a*p+G*   a+p  y+a*p  +G+  r+y*a*p+G+r  y+a*p +a+p+  G+r+gx+p+'
+  '+a+p+       G+r+a  +p+        y+   p+    +a+p+  y+a*p+G+r+  +a+p y+a*p+G*r+y*a*p+G'
 ];
 
 export const TREE_TEMPLATES = [
