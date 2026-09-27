@@ -41,9 +41,8 @@ export const MainMenuScreen: React.FC = () => {
   const [dialogText, setDialogText] = useState<string>('');
   const [crumbleParticles, setCrumbleParticles] = useState<CrumbleParticle[]>([]);
 
-  // Координаты и шаги
+  // Смещение при ходьбе всего отряда вправо
   const [partyWalkX, setPartyWalkX] = useState<number>(0);
-  const [heroStepX, setHeroStepX] = useState<number>(0);
 
   const menuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -317,7 +316,7 @@ export const MainMenuScreen: React.FC = () => {
         ['  ( ^ )  ', ' ( * ^ ) ', '  ( * )  ', ' /=====\\ '],
         [' ( * ^ ) ', '  ( * )  ', ' ( ^ * ) ', ' /=====\\ ']
       ];
-      const fireF = flames[Math.floor(tick / 8) % flames.length]; // Быстрее анимация
+      const fireF = flames[Math.floor(tick / 8) % flames.length];
       fireF.forEach((fLine, li) => {
         for (let ci = 0; ci < fLine.length; ci++) {
           const ch = fLine[ci];
@@ -386,12 +385,9 @@ export const MainMenuScreen: React.FC = () => {
         { key: 'Metris', baseCol: fireCol + 11, walkOffset: 0 }
       ];
 
-      // Плавная смена поз сидя
       const poseIdx = Math.floor(tick / 60) % 2;
       const breatheIdx = Math.floor(tick / 20) % 2;
       const walkStepIdx = Math.floor(tick / 10) % 2;
-
-      // Откат назад при тревоге
       const retreatX = phase === 'HEROES_RETREAT' ? -4 : 0;
 
       heroesList.forEach((h) => {
@@ -417,14 +413,14 @@ export const MainMenuScreen: React.FC = () => {
           sprite = hero.standingBreathe[breatheIdx];
           curCol = fireCol + h.walkOffset + partyWalkX + retreatX;
           if (h.key === 'Metris' && phase === 'HERO_APPROACH') {
-            curCol += 4; // Метрис подходит ближе к кустам
+            curCol += 4;
           }
           isStanding = true;
         } else {
           sprite = hero.standingBreathe[breatheIdx];
         }
 
-        const renderRow = isStanding ? groundRow - sprite.length : groundRow - sprite.length;
+        const renderRow = groundRow - sprite.length;
 
         sprite.forEach((line, li) => {
           for (let ci = 0; ci < line.length; ci++) {
@@ -456,7 +452,7 @@ export const MainMenuScreen: React.FC = () => {
         crumbleParticles.forEach((p) => {
           p.x += p.vx;
           p.y += p.vy;
-          p.vy += 0.25; // гравитация
+          p.vy += 0.25;
           p.alpha -= 0.015;
 
           if (p.alpha > 0) {
@@ -478,17 +474,15 @@ export const MainMenuScreen: React.FC = () => {
 
   // Клик по экрану в кат-сцене
   const handleGameCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // 1. Старт кат-сцены по клику на экран
     if (phase === 'WAIT_START') {
       setPhase('CAMP_PEACE');
       return;
     }
 
-    // Проверка клика по Метрису
     if (phase === 'METRIS_ALERT') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const targetX = window.innerWidth * 0.48; // Примерная позиция Метриса
+      const targetX = window.innerWidth * 0.48;
 
       if (Math.abs(clickX - targetX) < 140) {
         setPhase('DIALOG');
@@ -497,7 +491,6 @@ export const MainMenuScreen: React.FC = () => {
       return;
     }
 
-    // Проверка клика по дрожащим кустам
     if (phase === 'BUSH_SHAKING') {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
