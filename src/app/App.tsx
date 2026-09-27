@@ -1,11 +1,31 @@
 import React from 'react';
-// Импорт должен точно совпадать с названием файла выше
-import { BlackScreen } from '../ui/BlackScreen';
 
-export const App: React.FC = () => {
+// Стили экрана ожидания
+const styles = {
+  container: {
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: '#000000',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    color: '#444444',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    userSelect: 'none',
+  } as React.CSSProperties
+};
+
+// Экран: BlackScreen
+export const BlackScreen: React.FC = () => {
   return (
-    <React.Fragment>
-      <BlackScreen />
-    </React.Fragment>
+    <div style={styles.container}>
+      <span>Initializing BeginningMention...</span>
+    </div>
   );
+};
+
+// Главное приложение
+export const App: React.FC = () => {
+  return <BlackScreen />;
 };
