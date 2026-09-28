@@ -9,7 +9,7 @@ export interface HeroSkill {
   type: 'dmg' | 'shield' | 'heal' | 'buff' | 'curse' | 'revive';
   value: number;
   cd: number;
-  vfx: 'laser' | 'rocket' | 'log' | 'shield' | 'runes' | 'spear' | 'bomb';
+  vfx: 'laser' | 'rocket' | 'log' | 'shield' | 'runes' | 'spear' | 'bomb' | 'heal';
 }
 
 export interface Operator {
@@ -208,7 +208,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
       color: '#00fff2',
       ping: 8,
       frames: [
-        // Кадр 1: Щупальца подняты
         [
           { text: '   (S)    /\\____/\\    (S)   ', color: '#00fff2' },
           { text: '  ((~))  /  O  O  \\  ((~))  ', color: '#38bdf8' },
@@ -217,7 +216,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
           { text: '    \\~\\___\\______/___/~/    ', color: '#075985' },
           { text: '   (((((((( КРАКЕН )))))))) ', color: '#0c4a6e' }
         ],
-        // Кадр 2: Щупальца извиваются
         [
           { text: '  ((~))   /\\____/\\   ((~))  ', color: '#00fff2' },
           { text: '   \\~\\   /  *  *  \\   /~/   ', color: '#38bdf8' },
@@ -253,7 +251,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
       color: '#f59e0b',
       ping: 14,
       frames: [
-        // Кадр 1: Замах дубиной
         [
           { text: '       /^^^^\\      [=====]  ', color: '#f59e0b' },
           { text: '      | [0][0]|      |###|  ', color: '#fbbf24' },
@@ -263,7 +260,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
           { text: '      |  ||  |              ', color: '#78350f' },
           { text: '     /==    ==\\             ', color: '#451a03' }
         ],
-        // Кадр 2: Удар о землю
         [
           { text: '       /^^^^\\               ', color: '#f59e0b' },
           { text: '      | [X][X]|             ', color: '#ef4444' },
@@ -300,7 +296,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
       color: '#ff3b00',
       ping: 7,
       frames: [
-        // Кадр 1: Взмах крыльев вверх
         [
           { text: '   /\\             __--~~~~--__             /\\   ', color: '#ff7700' },
           { text: '  //\\\\          /~            ~\\          //\\\\  ', color: '#ff5500' },
@@ -310,7 +305,6 @@ export const PLANET_LEVELS: LevelBiome[] = [
           { text: '   \\\\        \\        ~~        /        //   ', color: '#ff7700' },
           { text: '    \\\\________\\________________/________//    ', color: '#b91c1c' }
         ],
-        // Кадр 2: Раскрытая пасть и пламя
         [
           { text: '                 __--~~~~--__                   ', color: '#ff7700' },
           { text: '  \\\\\\\\         /~    (X)  (X)   ~\\         //// ', color: '#ff2200' },
