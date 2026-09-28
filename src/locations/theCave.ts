@@ -8,22 +8,22 @@ export const theCaveScenario: LocationScenario = {
   description: 'пещера, в которой, по древним сказаниям, обитают орки и великаны.',
 
   musicBassNotes: [130.81, 146.83, 164.81, 174.61, 196.0, 220.0, 246.94],
-  introMarchDurationMs: 4500,
+  introMarchDurationMs: 4000,
 
-  // Пол пещеры с 20 строки (плотно под ногами)
+  // Пол пещеры с 22 строки (герои и орки стоят прямо на нем)
   getFloorRow: (col: number) => {
-    return Math.floor(20 + Math.sin(col * 0.16) * 1.8 + Math.cos(col * 0.08) * 1.2);
+    return Math.floor(22 + Math.sin(col * 0.14) * 1.5 + Math.cos(col * 0.06) * 1.0);
   },
 
   drawEnvironment: (ctx, cellW, cellH) => {
-    for (let sc = 0; sc < 75; sc += 5) {
+    for (let sc = 0; sc < 75; sc += 6) {
       ctx.fillStyle = '#1e1b4b';
       ctx.fillText('V', sc * cellW, 2 * cellH);
       ctx.fillText('|', sc * cellW, 1 * cellH);
     }
   },
 
-  // 5 Орков: 1 впереди, по 2 сверху и снизу сзади (удобный клин)
+  // 5 Орков: 1 впереди, по 2 сверху и снизу сзади
   initialEnemies: [
     {
       id: 0,
@@ -92,7 +92,7 @@ export const theCaveScenario: LocationScenario = {
     }
   ] as EnemyCombatant[],
 
-  // Тактическая логика
+  // Умная логика выбора цели
   getEnemyAttackTargetIdx: (enemy, heroes) => {
     const aliveIndices = heroes.map((h, i) => (h.isDead ? -1 : i)).filter((i) => i !== -1);
     if (aliveIndices.length === 0) return 0;
