@@ -12,7 +12,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
   const draggingRef = useRef<boolean>(false);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Модальные окна из символов
   const [selectedNode, setSelectedNode] = useState<PlanetNode | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
 
@@ -54,7 +53,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // ЧИСТЫЙ КОСМОС
       ctx.fillStyle = '#020010';
       ctx.fillRect(0, 0, w, h);
 
@@ -73,7 +71,7 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
       }
       ctx.globalAlpha = 1;
 
-      // Тело 3D-глобуса из символов
+      // 3D-сфера из символов
       const chars = ' .,:;+*?%S#@';
       ctx.font = `${Math.max(7, Math.floor(R / 22))}px monospace`;
       ctx.textAlign = 'center';
@@ -101,7 +99,7 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
         }
       }
 
-      // Проекция 14 нод
+      // Проекция нод
       const proj = PLANET_14_NODES.map((node) => {
         let [x, y, z] = latlon(node.lat, node.lon);
         [x, y, z] = rot3(x, y, z, rotXRef.current, rotYRef.current);
@@ -217,7 +215,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
         style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
       />
 
-      {/* КНОПКА ВЫХОДА В МЕНЮ */}
       <div style={{ position: 'absolute', top: 14, right: 16 }}>
         <button
           onClick={() => setShowExitConfirm(true)}
@@ -227,7 +224,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
         </button>
       </div>
 
-      {/* ОКНО ИНФОРМАЦИИ О НОДЕ ИЗ СИМВОЛОВ */}
       {selectedNode && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '460px', background: '#020010', border: '2px solid #00fff2', padding: '18px', boxSizing: 'border-box' }}>
@@ -261,7 +257,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onBackToMenuConfirmed }) => {
         </div>
       )}
 
-      {/* ПОДТВЕРЖДЕНИЕ ВЫХОДА В МЕНЮ ИЗ СИМВОЛОВ */}
       {showExitConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '420px', background: '#020010', border: '2px solid #ff0055', padding: '18px', boxSizing: 'border-box', textAlign: 'center' }}>
