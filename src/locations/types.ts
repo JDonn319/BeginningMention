@@ -1,5 +1,5 @@
 // ========================================================
-// КОНТРАКТ СЦЕНАРИЯ ЛОКАЦИИ (LOCATION SCENARIO INTERFACE)
+// ТИПЫ СЦЕНАРИЕВ ЛОКАЦИЙ И ВРАГОВ
 // ========================================================
 
 export interface EnemyCombatant {
@@ -12,7 +12,8 @@ export interface EnemyCombatant {
   rowOffset: number;
   isDead: boolean;
   color: string;
-  art: string[];
+  artIdle: string[];
+  artAiming: string[];
 }
 
 export interface LocationScenario {
@@ -20,28 +21,16 @@ export interface LocationScenario {
   name: string;
   subtitle: string;
   description: string;
-  
-  // Музыкальный лад (ноты баса для 8-битного синтезатора)
   musicBassNotes: number[];
-
-  // Длительность марша на входе (в миллисекундах)
   introMarchDurationMs: number;
-
-  // Функция высоты пола для создания неровного рельефа
   getFloorRow: (col: number) => number;
-
-  // Отрисовка уникального окружения (потолок, сталактиты, скалы)
   drawEnvironment: (
     ctx: CanvasRenderingContext2D,
     cellW: number,
     cellH: number,
     tick: number
   ) => void;
-
-  // Начальный состав и расстановка врагов
   initialEnemies: EnemyCombatant[];
-
-  // Тактическая логика атаки врагов
   getEnemyAttackTargetIdx: (
     enemy: EnemyCombatant,
     heroes: { id: string; heroClass: string; curHp: number; isDead: boolean }[]
