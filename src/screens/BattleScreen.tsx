@@ -23,19 +23,18 @@ export const BattleScreen: React.FC<Props> = ({
   onVictory,
   onDefeat
 }) => {
-  // Состояния: Вводный марш (5 сек) или Битва
   const [scenePhase, setScenePhase] = useState<'MARCHING' | 'BATTLE'>('MARCHING');
   const [marchProgress, setMarchProgress] = useState<number>(0);
 
-  // 4 выбранных героя игрока
-  const [party, setParty] = useState<(StarterHero & { curHp: number; ammo: number; isDead: boolean })[]>(() =>
+  // 4 выбранных героя
+  const [party, setParty] = useState<(StarterHero & { curHp: number; ammo: number; isDead: boolean; hasShield: boolean })[]>(() =>
     selectedSquadIds.slice(0, 4).map((id) => {
       const h = STARTER_HEROES.find((s) => s.id === id) || STARTER_HEROES[0];
-      return { ...h, curHp: h.hp, ammo: h.maxAmmo, isDead: false };
+      return { ...h, curHp: h.hp, ammo: h.maxAmmo, isDead: false, hasShield: false };
     })
   );
 
-  // Враги берутся из сценария локации
+  // Враги из сценария
   const [enemies, setEnemies] = useState<EnemyCombatant[]>(() =>
     scenario.initialEnemies.map((e) => ({ ...e }))
   );
@@ -44,9 +43,32 @@ export const BattleScreen: React.FC<Props> = ({
   const [selectedSkillIdx, setSelectedSkillIdx] = useState<number>(0);
   const [showSkillInfo, setShowSkillInfo] = useState<boolean>(false);
 
-  // Пальцевый прицел по правой половине экрана
-  const [aimPos, setAimPos] = useState<{ x: number; y: number }>({ x: 74, y: 24 });
-  const [activeVfx, setActiveVfx] = useState<{ type: string; progress: number; targetX: number; targetY: number } | null>(null);
+  // Прицеливание: позиция курсора на поле
+  const [aimPos, setAimPos] = useState<{ x: number; y: number }>({ x: 50, y: 20 });
+  const [selectedAllyTargetIdx, setSelectedAllyTargetIdx] = useState<number>(0);
+
+  // Анимация полета снаряда игрока
+  const [activeVfx, setActiveVfx] = useState<{
+    trajectory: 'LINE' | 'PARABOLA' | 'NONE';
+    color: string;
+    char: string;
+    progress: number;
+    startX: number;
+    startY: number;
+    targetX: number;
+    targetY: number;
+  } | null>(null);
+
+  // Прицеливание и атака врага
+  const [aimingEnemyId, setAimingEnemyId] = useState<number | null>(null);
+  const [enemyLaserTarget, setEnemyLaserTarget] = useState<{ x: number; y: number } | null>(null);
+  const [enemyRockVfx, setEnemyRockVfx] = useState<{
+    progress: number;
+    startX: number;
+    startY: number;
+    targetX: number;
+    targetY: number;
+  } | null>(null);
 
   const [floatingDamages, setFloatingDamages] = useState<FloatingDmg[]>([]);
   const [screenShake, setScreenShake] = useState<number>(0);
@@ -55,10 +77,17 @@ export const BattleScreen: React.FC<Props> = ({
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const activeHero = party[activeHeroIdx];
+  const activeSkill = activeHero.skills[selectedSkillIdx];
 
-  // --------------------------------------------------------------------------
-  // ПРОЦЕДУРНЫЙ 8-БИТНЫЙ СИНТЕЗАТОР (ИЗ НОТ СЦЕНАРИЯ)
-  // --------------------------------------------------------------------------
+  // Позиции героев на рельефе (2 ряда: верхний x: 14-22, нижний x: 20-28)
+  const heroLayout = [
+    { col: 14, rowOffset: -2 }, // Верхний ряд
+    { col: 22, rowOffset: -2 },
+    { col: 18, rowOffset: 2 },  // Нижний ряд (ближе)
+    { col: 26, rowOffset: 2 }
+  ];
+
+  // 8-битная музыка
   useEffect(() => {
     let isCancelled = false;
     let noteIdx = 0;
@@ -77,21 +106,21 @@ export const BattleScreen: React.FC<Props> = ({
         osc.frequency.value = scenario.musicBassNotes[noteIdx % scenario.musicBassNotes.length];
         noteIdx++;
 
-        gain.gain.setValueAtTime(0.04, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.035, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
 
         osc.start();
-        osc.stop(ctx.currentTime + 0.18);
+        osc.stop(ctx.currentTime + 0.16);
 
         setTimeout(playChiptuneBeat, 220);
       };
 
       playChiptuneBeat();
     } catch {
-      // Игнорируем автоплей блокировку браузера до первого тапа
+      // Игнорируем блокировку автоплея
     }
 
     return () => {
@@ -100,7 +129,7 @@ export const BattleScreen: React.FC<Props> = ({
     };
   }, [scenario]);
 
-  // Марш отряда при входе в локацию
+  // Вводный марш
   useEffect(() => {
     const startT = Date.now();
     const duration = scenario.introMarchDurationMs;
@@ -119,36 +148,74 @@ export const BattleScreen: React.FC<Props> = ({
   }, [scenario]);
 
   // --------------------------------------------------------------------------
-  // АТАКА ГЕРОЯ ПО ТРАЕКТОРИИ ПАЛЬЦА
+  // АТАКА / ПРИМЕНЕНИЕ НАВЫКА
   // --------------------------------------------------------------------------
-  const handleAttack = () => {
-    if (activeVfx || scenePhase !== 'BATTLE') return;
+  const handleAction = () => {
+    if (activeVfx || scenePhase !== 'BATTLE' || aimingEnemyId !== null) return;
 
-    // Перезарядка при 0 патронов
-    if (activeHero.ammo <= 0) {
+    // 1. НАВЫК ЛЕЧЕНИЯ (ДЕМИД / КАЙЛ) — КЛИК ПО СОЮЗНИКУ
+    if (activeSkill.category === 'HEAL') {
+      const targetAlly = party[selectedAllyTargetIdx];
+      const healVal = Math.floor(targetAlly.maxHp * 0.4);
+
       setParty((prev) =>
-        prev.map((h, i) => (i === activeHeroIdx ? { ...h, ammo: h.maxAmmo } : h))
+        prev.map((h, i) =>
+          i === selectedAllyTargetIdx
+            ? { ...h, isDead: false, curHp: Math.min(h.hp, h.curHp + healVal) }
+            : h
+        )
       );
-      addFloating(activeHero.id === 'josef' ? 14 : 22, 22, '[ПЕРЕЗАРЯДКА]', '#00fff2');
+
+      const targetPos = heroLayout[selectedAllyTargetIdx];
+      addFloating(targetPos.col, scenario.getFloorRow(targetPos.col) + targetPos.rowOffset - 3, `+${healVal} HP`, '#39ff14');
       advanceTurn();
       return;
     }
 
-    const skill = activeHero.skills[selectedSkillIdx];
+    // 2. ВОЗВЕДЕНИЕ СТЕНЫ (МИШЕЛЬ) — СТАВИТ ЩИТ СОЮЗНИКУ
+    if (activeSkill.category === 'WALL') {
+      setParty((prev) =>
+        prev.map((h, i) => (i === selectedAllyTargetIdx ? { ...h, hasShield: true } : h))
+      );
+      const targetPos = heroLayout[selectedAllyTargetIdx];
+      addFloating(targetPos.col, scenario.getFloorRow(targetPos.col) + targetPos.rowOffset - 3, '[ЩИТ +45]', '#38bdf8');
+      advanceTurn();
+      return;
+    }
 
+    // 3. БОЕВЫЕ НАВЫКИ (АТАКА / АОЕ)
+    if (activeHero.ammo <= 0) {
+      // Перезарядка
+      setParty((prev) =>
+        prev.map((h, i) => (i === activeHeroIdx ? { ...h, ammo: h.maxAmmo } : h))
+      );
+      addFloating(heroLayout[activeHeroIdx].col, scenario.getFloorRow(heroLayout[activeHeroIdx].col) - 4, '[ПЕРЕЗАРЯДКА]', '#00fff2');
+      advanceTurn();
+      return;
+    }
+
+    // Списание патронов
     setParty((prev) =>
-      prev.map((h, i) => (i === activeHeroIdx ? { ...h, ammo: Math.max(0, h.ammo - skill.ammoCost) } : h))
+      prev.map((h, i) => (i === activeHeroIdx ? { ...h, ammo: Math.max(0, h.ammo - activeSkill.ammoCost) } : h))
     );
 
+    const startPos = heroLayout[activeHeroIdx];
+    const sX = startPos.col + 4;
+    const sY = scenario.getFloorRow(startPos.col) + startPos.rowOffset - 1;
+
     setActiveVfx({
-      type: skill.type,
+      trajectory: activeSkill.trajectory,
+      color: activeSkill.category === 'AOE' ? '#c084fc' : (activeHero.id === 'michael' ? '#d97706' : '#00fff2'),
+      char: activeSkill.category === 'AOE' ? '●' : (activeHero.id === 'michael' ? '[|||]' : '==>'),
       progress: 0,
+      startX: sX,
+      startY: sY,
       targetX: aimPos.x,
       targetY: aimPos.y
     });
 
     const startT = Date.now();
-    const duration = skill.type === 'laser' ? 350 : 600;
+    const duration = activeSkill.trajectory === 'LINE' ? 320 : 650;
 
     const vfxInterval = setInterval(() => {
       const p = Math.min(1, (Date.now() - startT) / duration);
@@ -158,46 +225,56 @@ export const BattleScreen: React.FC<Props> = ({
         clearInterval(vfxInterval);
         setActiveVfx(null);
 
-        // Поиск врага в радиусе прицела
-        let hitEnemy = enemies.find(
-          (e) => !e.isDead && Math.hypot(e.col - aimPos.x, (scenario.getFloorRow(e.col) + e.rowOffset) - aimPos.y) < 7
-        );
-
-        if (!hitEnemy) {
-          hitEnemy = enemies.find((e) => !e.isDead);
-        }
-
-        if (hitEnemy) {
-          const isHeadshot = Math.abs(aimPos.y - (scenario.getFloorRow(hitEnemy.col) + hitEnemy.rowOffset - 3)) < 1.8;
-          let dmg = 12;
-
-          if (activeHero.id === 'josef') {
-            if (skill.id === 'impulse') {
-              dmg = isHeadshot ? 20 : Math.floor(Math.random() * 5) + 11;
-            } else {
-              dmg = Math.floor(Math.random() * 7) + 28;
-            }
-          } else {
-            dmg = Math.floor(Math.random() * 8) + 16;
-          }
-
+        // Расчет урона
+        if (activeSkill.category === 'AOE') {
+          // Урон ВСЕМ оркам в радиусе взрыва
+          let hitCount = 0;
           setEnemies((prev) =>
-            prev.map((e) => {
-              if (e.id === hitEnemy!.id) {
-                const newHp = Math.max(0, e.hp - dmg);
-                return { ...e, hp: newHp, isDead: newHp === 0 };
+            prev.map((orc) => {
+              const oY = scenario.getFloorRow(orc.col) + orc.rowOffset;
+              const dist = Math.hypot(orc.col - aimPos.x, oY - aimPos.y);
+
+              if (!orc.isDead && dist <= 12) {
+                hitCount++;
+                const aoeDmg = Math.floor(Math.random() * 6) + 28;
+                addFloating(orc.col, oY - 3, `ВЗРЫВ -${aoeDmg}`, '#ff0055');
+                const newHp = Math.max(0, orc.hp - aoeDmg);
+                return { ...orc, hp: newHp, isDead: newHp === 0 };
               }
-              return e;
+              return orc;
             })
           );
-
-          setScreenShake(isHeadshot ? 5 : 2);
-          addFloating(
-            hitEnemy.col,
-            scenario.getFloorRow(hitEnemy.col) + hitEnemy.rowOffset - 3,
-            isHeadshot ? `КРИТ -${dmg}` : `-${dmg}`,
-            isHeadshot ? '#ff0033' : '#ffaa00'
+          setScreenShake(hitCount > 0 ? 6 : 2);
+        } else {
+          // Одиночный выстрел (включая крит в голову)
+          let hitEnemy = enemies.find(
+            (e) => !e.isDead && Math.hypot(e.col - aimPos.x, (scenario.getFloorRow(e.col) + e.rowOffset) - aimPos.y) < 7
           );
+          if (!hitEnemy) hitEnemy = enemies.find((e) => !e.isDead);
+
+          if (hitEnemy) {
+            const isHead = Math.abs(aimPos.y - (scenario.getFloorRow(hitEnemy.col) + hitEnemy.rowOffset - 2)) < 1.6;
+            let dmg = isHead ? 20 : Math.floor(Math.random() * 5) + 11;
+            if (activeHero.id === 'michael') dmg = isHead ? 28 : 12;
+
+            setEnemies((prev) =>
+              prev.map((e) => {
+                if (e.id === hitEnemy!.id) {
+                  const newHp = Math.max(0, e.hp - dmg);
+                  return { ...e, hp: newHp, isDead: newHp === 0 };
+                }
+                return e;
+              })
+            );
+
+            setScreenShake(isHead ? 5 : 2);
+            addFloating(
+              hitEnemy.col,
+              scenario.getFloorRow(hitEnemy.col) + hitEnemy.rowOffset - 3,
+              isHead ? `КРИТ -${dmg}` : `-${dmg}`,
+              isHead ? '#ff0033' : '#ffaa00'
+            );
+          }
         }
 
         setTimeout(advanceTurn, 300);
@@ -219,8 +296,8 @@ export const BattleScreen: React.FC<Props> = ({
 
     const nextHeroIdx = (activeHeroIdx + 1) % party.length;
     if (nextHeroIdx === 0) {
-      // ХОД ВРАГОВ ПО ИХ СЦЕНАРНОЙ ЛОГИКЕ
-      setTimeout(executeEnemiesTurn, 600);
+      // ХОД ОРКОВ С ВИЗУАЛЬНЫМ ПРИЦЕЛИВАНИЕМ
+      setTimeout(executeOrcsTurnWithAiming, 600);
     } else {
       setActiveHeroIdx(nextHeroIdx);
       setSelectedSkillIdx(0);
@@ -228,7 +305,10 @@ export const BattleScreen: React.FC<Props> = ({
     }
   };
 
-  const executeEnemiesTurn = () => {
+  // --------------------------------------------------------------------------
+  // ОРКИ ВИЗУАЛЬНО ЦЕЛЯТСЯ И КИДАЮТ КАМНИ ПО ДУГЕ
+  // --------------------------------------------------------------------------
+  const executeOrcsTurnWithAiming = () => {
     const aliveEnemies = enemies.filter((e) => !e.isDead);
     const aliveHeroes = party.filter((h) => !h.isDead);
 
@@ -237,61 +317,117 @@ export const BattleScreen: React.FC<Props> = ({
       return;
     }
 
-    aliveEnemies.forEach((enemy, idx) => {
+    let delay = 0;
+
+    aliveEnemies.forEach((orc) => {
+      // 1. Орк поднимает камень над головой и выцеливает цель
       setTimeout(() => {
-        const targetHeroIdx = scenario.getEnemyAttackTargetIdx(enemy, party);
-        const targetHero = party[targetHeroIdx] || aliveHeroes[0];
+        setAimingEnemyId(orc.id);
+        const targetHeroIdx = scenario.getEnemyAttackTargetIdx(orc, party);
+        const targetPos = heroLayout[targetHeroIdx];
+        setEnemyLaserTarget({ x: targetPos.col, y: scenario.getFloorRow(targetPos.col) + targetPos.rowOffset - 1 });
+      }, delay);
 
-        const dmg = Math.floor(Math.random() * 6) + 10;
-        setParty((prev) =>
-          prev.map((h) => {
-            if (h.id === targetHero.id) {
-              const newHp = Math.max(0, h.curHp - dmg);
-              return { ...h, curHp: newHp, isDead: newHp === 0 };
+      // 2. Бросок камня по параболической дуге
+      setTimeout(() => {
+        const targetHeroIdx = scenario.getEnemyAttackTargetIdx(orc, party);
+        const targetPos = heroLayout[targetHeroIdx];
+        const targetHero = party[targetHeroIdx];
+
+        const oY = scenario.getFloorRow(orc.col) + orc.rowOffset - 2;
+        const tY = scenario.getFloorRow(targetPos.col) + targetPos.rowOffset - 1;
+
+        const throwStart = Date.now();
+        const duration = 500;
+
+        const rockInterval = setInterval(() => {
+          const p = Math.min(1, (Date.now() - throwStart) / duration);
+          setEnemyRockVfx({
+            progress: p,
+            startX: orc.col,
+            startY: oY,
+            targetX: targetPos.col,
+            targetY: tY
+          });
+
+          if (p >= 1) {
+            clearInterval(rockInterval);
+            setEnemyRockVfx(null);
+            setAimingEnemyId(null);
+            setEnemyLaserTarget(null);
+
+            // Попадание
+            if (targetHero.hasShield) {
+              setParty((prev) =>
+                prev.map((h, i) => (i === targetHeroIdx ? { ...h, hasShield: false } : h))
+              );
+              addFloating(targetPos.col, tY - 2, '[БЛОК ЩИТОМ]', '#38bdf8');
+            } else {
+              const rockDmg = Math.floor(Math.random() * 5) + 12;
+              setParty((prev) =>
+                prev.map((h, i) =>
+                  i === targetHeroIdx
+                    ? { ...h, curHp: Math.max(0, h.curHp - rockDmg), isDead: h.curHp - rockDmg <= 0 }
+                    : h
+                )
+              );
+              setScreenShake(4);
+              addFloating(targetPos.col, tY - 2, `-${rockDmg}`, '#ef4444');
             }
-            return h;
-          })
-        );
+          }
+        }, 20);
+      }, delay + 650);
 
-        setScreenShake(3);
-        addFloating(20, 24, `УДАР -${dmg}`, '#ef4444');
-      }, idx * 300);
+      delay += 1350;
     });
 
     setTimeout(() => {
       setActiveHeroIdx(0);
       setSelectedSkillIdx(0);
       setShowSkillInfo(false);
-    }, aliveEnemies.length * 300 + 400);
+    }, delay + 300);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  // Перемещение пальца: прицеливание
+  const handlePointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
 
-    const gridX = (px / rect.width) * 100;
-    const gridY = (py / rect.height) * 42;
+    const gridX = (px / rect.width) * 75;
+    const gridY = (py / rect.height) * 32;
 
-    if (gridX > 46) {
-      setAimPos({ x: gridX, y: gridY });
+    if (activeSkill.category === 'HEAL' || activeSkill.category === 'WALL') {
+      // Прицел по союзникам (левая половина)
+      let closestAlly = 0;
+      let closestDist = 999;
+      heroLayout.forEach((pos, i) => {
+        const d = Math.hypot(pos.col - gridX, (scenario.getFloorRow(pos.col) + pos.rowOffset) - gridY);
+        if (d < closestDist) {
+          closestDist = d;
+          closestAlly = i;
+        }
+      });
+      setSelectedAllyTargetIdx(closestAlly);
+    } else {
+      // Прицел по врагам (правая половина)
+      if (gridX > 36) {
+        setAimPos({ x: gridX, y: gridY });
+      }
     }
   };
 
-  // Анимация всплывающих чисел
   useEffect(() => {
     const interval = setInterval(() => {
       setFloatingDamages((prev) =>
-        prev
-          .map((d) => ({ ...d, y: d.y - 0.35 }))
-          .filter((d) => d.y > 5)
+        prev.map((d) => ({ ...d, y: d.y - 0.3 })).filter((d) => d.y > 4)
       );
     }, 35);
     return () => clearInterval(interval);
   }, []);
 
   // --------------------------------------------------------------------------
-  // РЕНДЕР КАНВАСА БОЯ
+  // РЕНДЕР КАНВАСА (КРУПНАЯ СЕТКА 75x32, ЧЕСТНАЯ ПОСАДКА НА ЗЕМЛЮ)
   // --------------------------------------------------------------------------
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -307,6 +443,7 @@ export const BattleScreen: React.FC<Props> = ({
       const w = window.innerWidth;
       const h = window.innerHeight;
       const dpr = window.devicePixelRatio || 1;
+
       if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
         canvas.width = w * dpr;
         canvas.height = h * dpr;
@@ -321,123 +458,186 @@ export const BattleScreen: React.FC<Props> = ({
       ctx.fillStyle = '#020314';
       ctx.fillRect(0, 0, w, h);
 
-      const CELL_W = w / 100;
-      const CELL_H = h / 42;
+      // Укрупненная адаптивная сетка
+      const GRID_COLS = 75;
+      const GRID_ROWS = 32;
+      const CELL_W = w / GRID_COLS;
+      const CELL_H = h / GRID_ROWS;
+
       ctx.font = `${Math.floor(CELL_H * 0.95)}px monospace`;
       ctx.textBaseline = 'top';
 
       const floorScrollOffset = scenePhase === 'MARCHING' ? tick * 0.4 : marchProgress * 100;
 
-      // 1. Окружение локации из сценария
+      // 1. Окружение
       scenario.drawEnvironment(ctx, CELL_W, CELL_H, tick);
 
-      // 2. Рельеф пола
-      for (let sc = 0; sc < 100; sc++) {
+      // 2. Фиолетовый рельеф земли (начинается с 20 строки)
+      for (let sc = 0; sc < GRID_COLS; sc++) {
         const floorY = scenario.getFloorRow(sc + Math.floor(floorScrollOffset));
-        for (let r = floorY; r < 42; r++) {
+        for (let r = floorY; r < GRID_ROWS; r++) {
           const depth = r - floorY;
           ctx.fillStyle = depth === 0 ? '#7c3aed' : (depth === 1 ? '#5b21b6' : '#2e1065');
           const symbols = ['~', '#', '%', 'x', '='];
-          const ch = symbols[(sc + r) % symbols.length];
-          ctx.fillText(ch, sc * CELL_W, r * CELL_H);
+          ctx.fillText(symbols[(sc + r) % symbols.length], sc * CELL_W, r * CELL_H);
         }
       }
 
-      // 3. Отряд игроков в 2 ряда (верхний чуть впереди, нижний чуть дальше)
-      const heroPositions = [
-        { col: 18, rowOffset: -2 },
-        { col: 26, rowOffset: -2 },
-        { col: 14, rowOffset: 2 },
-        { col: 22, rowOffset: 2 }
-      ];
-
+      // 3. Отряд героев (2 ряда, жестко стоят ногами L L на грунте)
       party.forEach((hero, idx) => {
-        const pos = heroPositions[idx];
+        const pos = heroLayout[idx];
         const hFloorY = scenario.getFloorRow(pos.col) + pos.rowOffset;
         const isActive = idx === activeHeroIdx && scenePhase === 'BATTLE';
+        const isTargetedByHeal = (activeSkill.category === 'HEAL' || activeSkill.category === 'WALL') && selectedAllyTargetIdx === idx;
 
         const walkFrame = Math.floor(tick / 8) % 2 === 0 ? hero.artBreath1 : hero.artBreath2;
 
+        // Рамка активного хода
         if (isActive) {
           ctx.fillStyle = '#00fff2';
           ctx.fillText('+-- --+', (pos.col - 2) * CELL_W, (hFloorY - 4) * CELL_H);
           ctx.fillText(`| ${hero.name} |`, (pos.col - 2) * CELL_W, (hFloorY - 3) * CELL_H);
         }
 
+        // Подсветка цели лечения/стены
+        if (isTargetedByHeal) {
+          ctx.fillStyle = '#39ff14';
+          ctx.fillText('[ ЦЕЛЬ ]', (pos.col - 1) * CELL_W, (hFloorY - 4.5) * CELL_H);
+        }
+
+        // Стена-щит перед союзником
+        if (hero.hasShield) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillText('|===|', (pos.col + 3) * CELL_W, (hFloorY - 2) * CELL_H);
+        }
+
+        // Фигура героя (ноги L L стоят строго на уровне hFloorY)
         ctx.fillStyle = hero.color;
         ctx.shadowColor = hero.color;
         ctx.shadowBlur = 6;
         walkFrame.forEach((line, li) => {
-          ctx.fillText(line, pos.col * CELL_W, (hFloorY - 2 + li) * CELL_H);
+          ctx.fillText(line, pos.col * CELL_W, (hFloorY - 3 + li) * CELL_H);
         });
         ctx.shadowBlur = 0;
 
+        // HP
         ctx.fillStyle = '#22c55e';
-        ctx.fillText(`${hero.curHp}/${hero.hp}`, pos.col * CELL_W, (hFloorY + 2) * CELL_H);
+        ctx.fillText(`${hero.curHp}/${hero.hp}`, pos.col * CELL_W, (hFloorY + 1) * CELL_H);
       });
 
-      // 4. Отрисовка врагов из сценария
-      const enemySpawnShiftX = scenePhase === 'MARCHING' ? (1 - marchProgress) * 45 : 0;
+      // 4. Орки (крупные, стоят ногами I I на грунте)
+      const enemySpawnShiftX = scenePhase === 'MARCHING' ? (1 - marchProgress) * 40 : 0;
 
-      enemies.forEach((enemy) => {
-        if (enemy.isDead) return;
-        const eFloorY = scenario.getFloorRow(enemy.col) + enemy.rowOffset;
-        const renderCol = enemy.col + enemySpawnShiftX;
+      enemies.forEach((orc) => {
+        if (orc.isDead) return;
+        const oFloorY = scenario.getFloorRow(orc.col) + orc.rowOffset;
+        const renderCol = orc.col + enemySpawnShiftX;
+        const isAiming = aimingEnemyId === orc.id;
 
-        ctx.fillStyle = enemy.color;
-        enemy.art.forEach((line, li) => {
-          ctx.fillText(line, renderCol * CELL_W, (eFloorY - 2 + li) * CELL_H);
+        // Если в зоне АОЕ-прицела — подсвечиваем [!ЦЕЛЬ!]
+        if (activeSkill.category === 'AOE' && Math.hypot(orc.col - aimPos.x, oY(orc) - aimPos.y) <= 12) {
+          ctx.fillStyle = '#ff0055';
+          ctx.fillText('[!ЦЕЛЬ!]', (renderCol - 1) * CELL_W, (oFloorY - 4.5) * CELL_H);
+        }
+
+        ctx.fillStyle = orc.color;
+        const currentArt = isAiming ? orc.artAiming : orc.artIdle;
+        currentArt.forEach((line, li) => {
+          ctx.fillText(line, renderCol * CELL_W, (oFloorY - 3 + li) * CELL_H);
         });
 
         ctx.fillStyle = '#ef4444';
-        ctx.fillText(`${enemy.hp}/${enemy.maxHp}`, renderCol * CELL_W, (eFloorY + 2) * CELL_H);
+        ctx.fillText(`${orc.hp}/${orc.maxHp}`, renderCol * CELL_W, (oFloorY + 1) * CELL_H);
       });
 
-      // 5. Траектория белых букв "a t t a c k"
-      if (scenePhase === 'BATTLE' && !activeVfx) {
-        const startHeroPos = heroPositions[activeHeroIdx];
-        const startX = startHeroPos.col + 4;
-        const startY = scenario.getFloorRow(startHeroPos.col) + startHeroPos.rowOffset - 1;
-
-        const letters = ['a', 't', 't', 'a', 'c', 'k'];
-        letters.forEach((char, i) => {
-          const shift = (tick * 0.06 + i * 0.16) % 1;
-          const curX = startX + (aimPos.x - startX) * shift;
-          const curY = startY + (aimPos.y - startY) * shift;
-
-          ctx.fillStyle = '#ffffff';
-          ctx.fillText(char, curX * CELL_W, curY * CELL_H);
-        });
-
-        ctx.fillStyle = '#00fff2';
-        ctx.fillText('[+]', (aimPos.x - 1) * CELL_W, aimPos.y * CELL_H);
+      function oY(orc: EnemyCombatant) {
+        return scenario.getFloorRow(orc.col) + orc.rowOffset;
       }
 
-      // 6. Спецэффекты
-      if (activeVfx) {
-        const startHeroPos = heroPositions[activeHeroIdx];
-        const sX = startHeroPos.col + 4;
-        const sY = scenario.getFloorRow(startHeroPos.col) + startHeroPos.rowOffset - 1;
+      // 5. Траектория прицеливания игрока
+      if (scenePhase === 'BATTLE' && !activeVfx && (activeSkill.category === 'ATTACK' || activeSkill.category === 'AOE')) {
+        const startPos = heroLayout[activeHeroIdx];
+        const sX = startPos.col + 4;
+        const sY = scenario.getFloorRow(startPos.col) + startPos.rowOffset - 2;
 
-        if (activeVfx.type === 'laser') {
-          ctx.strokeStyle = '#c084fc';
-          ctx.shadowColor = '#c084fc';
-          ctx.shadowBlur = 10;
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(sX * CELL_W, sY * CELL_H);
-          ctx.lineTo(activeVfx.targetX * CELL_W, activeVfx.targetY * CELL_H);
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-        } else if (activeVfx.type === 'bomb') {
-          const curX = sX + (activeVfx.targetX - sX) * activeVfx.progress;
-          const curY = sY + (activeVfx.targetY - sY) * activeVfx.progress - Math.sin(activeVfx.progress * Math.PI) * 7;
-          ctx.fillStyle = '#c084fc';
-          ctx.fillText('(●)', curX * CELL_W, curY * CELL_H);
+        // Стабильная, немерцающая линия букв a t t a c k
+        const steps = 14;
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const curX = sX + (aimPos.x - sX) * t;
+          let curY = sY + (aimPos.y - sY) * t;
+
+          // Честная парабола для бомб/бревна
+          if (activeSkill.trajectory === 'PARABOLA') {
+            curY -= Math.sin(t * Math.PI) * 7;
+          }
+
+          const letters = ['a', 't', 't', 'a', 'c', 'k'];
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(letters[i % letters.length], curX * CELL_W, curY * CELL_H);
+        }
+
+        // Прицел
+        ctx.fillStyle = '#00fff2';
+        ctx.fillText('[+]', (aimPos.x - 1) * CELL_W, aimPos.y * CELL_H);
+
+        // Индикатор зоны поражения АОЕ
+        if (activeSkill.category === 'AOE') {
+          ctx.fillStyle = '#ff0055';
+          ctx.fillText('(==== РАДИУС ВЗРЫВА ====)', (aimPos.x - 12) * CELL_W, (aimPos.y + 2) * CELL_H);
         }
       }
 
-      // 7. Всплывающий урон
+      // 6. Красная дуга прицеливания Орка
+      if (enemyLaserTarget !== null && aimingEnemyId !== null) {
+        const orc = enemies.find((e) => e.id === aimingEnemyId);
+        if (orc) {
+          const oYPos = scenario.getFloorRow(orc.col) + orc.rowOffset - 2;
+          for (let i = 0; i <= 10; i++) {
+            const t = i / 10;
+            const rx = orc.col + (enemyLaserTarget.x - orc.col) * t;
+            const ry = oYPos + (enemyLaserTarget.y - oYPos) * t - Math.sin(t * Math.PI) * 6;
+            ctx.fillStyle = '#ff0033';
+            ctx.fillText('!', rx * CELL_W, ry * CELL_H);
+          }
+        }
+      }
+
+      // 7. Полет камня орка
+      if (enemyRockVfx) {
+        const curX = enemyRockVfx.startX + (enemyRockVfx.targetX - enemyRockVfx.startX) * enemyRockVfx.progress;
+        const curY = enemyRockVfx.startY + (enemyRockVfx.targetY - enemyRockVfx.startY) * enemyRockVfx.progress - Math.sin(enemyRockVfx.progress * Math.PI) * 7;
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('(ВАЛУН)', curX * CELL_W, curY * CELL_H);
+      }
+
+      // 8. Спецэффекты полета снарядов игрока
+      if (activeVfx) {
+        let curX = activeVfx.startX + (activeVfx.targetX - activeVfx.startX) * activeVfx.progress;
+        let curY = activeVfx.startY + (activeVfx.targetY - activeVfx.startY) * activeVfx.progress;
+
+        if (activeVfx.trajectory === 'PARABOLA') {
+          curY -= Math.sin(activeVfx.progress * Math.PI) * 7;
+        }
+
+        ctx.fillStyle = activeVfx.color;
+        ctx.shadowColor = activeVfx.color;
+        ctx.shadowBlur = 10;
+
+        if (activeVfx.trajectory === 'LINE') {
+          ctx.strokeStyle = activeVfx.color;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(activeVfx.startX * CELL_W, activeVfx.startY * CELL_H);
+          ctx.lineTo(activeVfx.targetX * CELL_W, activeVfx.targetY * CELL_H);
+          ctx.stroke();
+        } else {
+          ctx.fillText(activeVfx.char, curX * CELL_W, curY * CELL_H);
+        }
+        ctx.shadowBlur = 0;
+      }
+
+      // 9. Всплывающий урон
       floatingDamages.forEach((fd) => {
         ctx.fillStyle = fd.col;
         ctx.fillText(fd.text, fd.x * CELL_W, fd.y * CELL_H);
@@ -448,32 +648,32 @@ export const BattleScreen: React.FC<Props> = ({
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [party, enemies, activeHeroIdx, scenePhase, marchProgress, aimPos, activeVfx, floatingDamages, screenShake, scenario]);
+  }, [party, enemies, activeHeroIdx, scenePhase, marchProgress, aimPos, activeVfx, floatingDamages, screenShake, scenario, selectedSkillIdx, activeSkill, selectedAllyTargetIdx, aimingEnemyId, enemyLaserTarget, enemyRockVfx]);
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020314', overflow: 'hidden', fontFamily: "'Press Start 2P', monospace" }}>
       <canvas
         ref={canvasRef}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerMove}
+        onPointerMove={handlePointer}
+        onPointerDown={handlePointer}
         style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
       />
 
-      {/* ВЕРХНИЙ HUD АКТИВНОГО ГЕРОЯ С БОЛЬШИМ ASCII-ОРУЖИЕМ */}
+      {/* ВЕРХ СЛЕВА: АКТИВНЫЙ ГЕРОЙ, ОРУЖИЕ И НАВЫКИ */}
       {scenePhase === 'BATTLE' && (
         <div style={{ position: 'absolute', top: 12, left: 16, zIndex: 10, pointerEvents: 'auto' }}>
-          <div style={{ fontSize: '11px', color: activeHero.color }}>
+          <div style={{ fontSize: '10px', color: activeHero.color, marginBottom: '6px' }}>
             {activeHero.name} // {activeHero.weaponName} [ПАТРОНЫ: {activeHero.ammo}/{activeHero.maxAmmo}]
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginTop: '8px' }}>
+          <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
             {/* Большое ASCII-оружие */}
-            <pre style={{ margin: 0, fontSize: '10px', lineHeight: 1.1, color: '#38bdf8', textShadow: '0 0 8px #0284c7' }}>
+            <pre style={{ margin: 0, fontSize: '9px', lineHeight: 1.1, color: '#38bdf8' }}>
               {activeHero.largeWeaponAscii.join('\n')}
             </pre>
 
-            {/* Навыки с кнопкой [i] */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Способности с >>> и кнопкой [i] */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               {activeHero.skills.map((sk, idx) => (
                 <div key={sk.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -483,7 +683,7 @@ export const BattleScreen: React.FC<Props> = ({
                       border: 'none',
                       color: selectedSkillIdx === idx ? '#00fff2' : '#94a3b8',
                       fontFamily: 'inherit',
-                      fontSize: '9px',
+                      fontSize: '8px',
                       cursor: 'pointer',
                       padding: 0
                     }}
@@ -493,7 +693,7 @@ export const BattleScreen: React.FC<Props> = ({
 
                   <button
                     onClick={() => setShowSkillInfo((prev) => !prev)}
-                    style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', fontFamily: 'inherit', fontSize: '8px', padding: '2px 4px', cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', fontFamily: 'inherit', fontSize: '7px', padding: '2px 4px', cursor: 'pointer' }}
                   >
                     [i]
                   </button>
@@ -502,8 +702,8 @@ export const BattleScreen: React.FC<Props> = ({
 
               {/* Выезжающая справка [i] */}
               {showSkillInfo && (
-                <div style={{ background: 'rgba(2, 6, 24, 0.95)', border: '1px solid #f59e0b', padding: '6px 10px', fontSize: '8px', color: '#fef08a', maxWidth: '260px', lineHeight: 1.5 }}>
-                  {activeHero.skills[selectedSkillIdx].desc}
+                <div style={{ background: 'rgba(2, 6, 24, 0.95)', border: '1px solid #f59e0b', padding: '6px 8px', fontSize: '7px', color: '#fef08a', maxWidth: '240px', lineHeight: 1.5 }}>
+                  {activeSkill.desc}
                 </div>
               )}
             </div>
@@ -511,26 +711,26 @@ export const BattleScreen: React.FC<Props> = ({
         </div>
       )}
 
-      {/* НИЖНЯЯ ПАНЕЛЬ ТАЙМЛАЙНА И КНОПКА [ ATTACK ] */}
+      {/* НИЖНЯЯ ПАНЕЛЬ С ОЧЕРЕДЬЮ И ДИНАМИЧЕСКОЙ КНОПКОЙ */}
       {scenePhase === 'BATTLE' && (
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(2,3,20,0.95)', borderTop: '1px solid #1e1b4b', padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
-          <div style={{ fontSize: '9px', color: '#94a3b8' }}>
-            ОЧЕРЕДЬ: <span style={{ color: activeHero.color }}>{activeHero.name}</span> —&gt; <span>Michael</span> —&gt; <span style={{ color: '#84cc16' }}>{enemies[0]?.name || 'Враг'}</span> —&gt; <span>Kyle</span> —&gt; <span>Artemis</span>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(2,3,20,0.95)', borderTop: '1px solid #1e1b4b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+          <div style={{ fontSize: '8px', color: '#94a3b8' }}>
+            ОЧЕРЕДЬ: <span style={{ color: activeHero.color }}>{activeHero.name}</span> —&gt; <span>Michael</span> —&gt; <span style={{ color: '#84cc16' }}>Орки (Камни)</span> —&gt; <span>Kyle</span> —&gt; <span>Artemis</span>
           </div>
 
           <button
-            onClick={handleAttack}
+            onClick={handleAction}
             style={{
-              background: 'rgba(255,0,85,0.2)',
-              border: '2px solid #ff0055',
-              color: '#ff0055',
+              background: activeSkill.category === 'HEAL' ? 'rgba(57,255,20,0.2)' : (activeSkill.category === 'WALL' ? 'rgba(56,189,248,0.2)' : 'rgba(255,0,85,0.2)'),
+              border: `2px solid ${activeSkill.category === 'HEAL' ? '#39ff14' : (activeSkill.category === 'WALL' ? '#38bdf8' : '#ff0055')}`,
+              color: activeSkill.category === 'HEAL' ? '#39ff14' : (activeSkill.category === 'WALL' ? '#38bdf8' : '#ff0055'),
               fontFamily: 'inherit',
-              fontSize: '11px',
-              padding: '10px 24px',
+              fontSize: '10px',
+              padding: '8px 20px',
               cursor: 'pointer'
             }}
           >
-            [ ATTACK ]
+            {activeSkill.category === 'HEAL' ? '[ ПРИМЕНИТЬ ]' : (activeSkill.category === 'WALL' ? '[ ПОСТРОИТЬ ]' : '[ ATTACK ]')}
           </button>
         </div>
       )}
