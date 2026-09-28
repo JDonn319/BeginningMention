@@ -26,11 +26,11 @@ export const BattleScreen: React.FC<Props> = ({
   const [scenePhase, setScenePhase] = useState<'MARCHING' | 'BATTLE'>('MARCHING');
   const [marchProgress, setMarchProgress] = useState<number>(0);
 
-  // 4 выбранных героя
-  const [party, setParty] = useState<(StarterHero & { curHp: number; ammo: number; isDead: boolean; hasShield: boolean })[]>(() =>
+  // 4 выбранных героя (гарантированно содержат curHp и maxHp)
+  const [party, setParty] = useState<(StarterHero & { curHp: number; maxHp: number; ammo: number; isDead: boolean; hasShield: boolean })[]>(() =>
     selectedSquadIds.slice(0, 4).map((id) => {
       const h = STARTER_HEROES.find((s) => s.id === id) || STARTER_HEROES[0];
-      return { ...h, curHp: h.hp, ammo: h.maxAmmo, isDead: false, hasShield: false };
+      return { ...h, curHp: h.hp, maxHp: h.hp, ammo: h.maxAmmo, isDead: false, hasShield: false };
     })
   );
 
@@ -79,7 +79,7 @@ export const BattleScreen: React.FC<Props> = ({
   const activeHero = party[activeHeroIdx];
   const activeSkill = activeHero.skills[selectedSkillIdx];
 
-  // Позиции героев на рельефе (2 ряда: верхний x: 14-22, нижний x: 20-28)
+  // Позиции героев на рельефе (2 ряда: верхний x: 14-22, нижний x: 18-26)
   const heroLayout = [
     { col: 14, rowOffset: -2 }, // Верхний ряд
     { col: 22, rowOffset: -2 },
@@ -120,7 +120,7 @@ export const BattleScreen: React.FC<Props> = ({
 
       playChiptuneBeat();
     } catch {
-      // Игнорируем блокировку автоплея
+      // Игнорируем блокировку автоплея до первого взаимодействия
     }
 
     return () => {
@@ -161,7 +161,7 @@ export const BattleScreen: React.FC<Props> = ({
       setParty((prev) =>
         prev.map((h, i) =>
           i === selectedAllyTargetIdx
-            ? { ...h, isDead: false, curHp: Math.min(h.hp, h.curHp + healVal) }
+            ? { ...h, isDead: false, curHp: Math.min(h.maxHp, h.curHp + healVal) }
             : h
         )
       );
@@ -185,7 +185,6 @@ export const BattleScreen: React.FC<Props> = ({
 
     // 3. БОЕВЫЕ НАВЫКИ (АТАКА / АОЕ)
     if (activeHero.ammo <= 0) {
-      // Перезарядка
       setParty((prev) =>
         prev.map((h, i) => (i === activeHeroIdx ? { ...h, ammo: h.maxAmmo } : h))
       );
@@ -227,7 +226,6 @@ export const BattleScreen: React.FC<Props> = ({
 
         // Расчет урона
         if (activeSkill.category === 'AOE') {
-          // Урон ВСЕМ оркам в радиусе взрыва
           let hitCount = 0;
           setEnemies((prev) =>
             prev.map((orc) => {
@@ -246,7 +244,6 @@ export const BattleScreen: React.FC<Props> = ({
           );
           setScreenShake(hitCount > 0 ? 6 : 2);
         } else {
-          // Одиночный выстрел (включая крит в голову)
           let hitEnemy = enemies.find(
             (e) => !e.isDead && Math.hypot(e.col - aimPos.x, (scenario.getFloorRow(e.col) + e.rowOffset) - aimPos.y) < 7
           );
@@ -305,9 +302,7 @@ export const BattleScreen: React.FC<Props> = ({
     }
   };
 
-  // --------------------------------------------------------------------------
   // ОРКИ ВИЗУАЛЬНО ЦЕЛЯТСЯ И КИДАЮТ КАМНИ ПО ДУГЕ
-  // --------------------------------------------------------------------------
   const executeOrcsTurnWithAiming = () => {
     const aliveEnemies = enemies.filter((e) => !e.isDead);
     const aliveHeroes = party.filter((h) => !h.isDead);
@@ -320,7 +315,6 @@ export const BattleScreen: React.FC<Props> = ({
     let delay = 0;
 
     aliveEnemies.forEach((orc) => {
-      // 1. Орк поднимает камень над головой и выцеливает цель
       setTimeout(() => {
         setAimingEnemyId(orc.id);
         const targetHeroIdx = scenario.getEnemyAttackTargetIdx(orc, party);
@@ -328,7 +322,6 @@ export const BattleScreen: React.FC<Props> = ({
         setEnemyLaserTarget({ x: targetPos.col, y: scenario.getFloorRow(targetPos.col) + targetPos.rowOffset - 1 });
       }, delay);
 
-      // 2. Бросок камня по параболической дуге
       setTimeout(() => {
         const targetHeroIdx = scenario.getEnemyAttackTargetIdx(orc, party);
         const targetPos = heroLayout[targetHeroIdx];
@@ -356,7 +349,6 @@ export const BattleScreen: React.FC<Props> = ({
             setAimingEnemyId(null);
             setEnemyLaserTarget(null);
 
-            // Попадание
             if (targetHero.hasShield) {
               setParty((prev) =>
                 prev.map((h, i) => (i === targetHeroIdx ? { ...h, hasShield: false } : h))
@@ -398,7 +390,6 @@ export const BattleScreen: React.FC<Props> = ({
     const gridY = (py / rect.height) * 32;
 
     if (activeSkill.category === 'HEAL' || activeSkill.category === 'WALL') {
-      // Прицел по союзникам (левая половина)
       let closestAlly = 0;
       let closestDist = 999;
       heroLayout.forEach((pos, i) => {
@@ -410,7 +401,6 @@ export const BattleScreen: React.FC<Props> = ({
       });
       setSelectedAllyTargetIdx(closestAlly);
     } else {
-      // Прицел по врагам (правая половина)
       if (gridX > 36) {
         setAimPos({ x: gridX, y: gridY });
       }
@@ -427,7 +417,7 @@ export const BattleScreen: React.FC<Props> = ({
   }, []);
 
   // --------------------------------------------------------------------------
-  // РЕНДЕР КАНВАСА (КРУПНАЯ СЕТКА 75x32, ЧЕСТНАЯ ПОСАДКА НА ЗЕМЛЮ)
+  // РЕНДЕР КАНВАСА (СЕТКА 75x32, ЧЕСТНАЯ ПОСАДКА НА ЗЕМЛЮ)
   // --------------------------------------------------------------------------
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -458,7 +448,6 @@ export const BattleScreen: React.FC<Props> = ({
       ctx.fillStyle = '#020314';
       ctx.fillRect(0, 0, w, h);
 
-      // Укрупненная адаптивная сетка
       const GRID_COLS = 75;
       const GRID_ROWS = 32;
       const CELL_W = w / GRID_COLS;
@@ -492,26 +481,23 @@ export const BattleScreen: React.FC<Props> = ({
 
         const walkFrame = Math.floor(tick / 8) % 2 === 0 ? hero.artBreath1 : hero.artBreath2;
 
-        // Рамка активного хода
         if (isActive) {
           ctx.fillStyle = '#00fff2';
           ctx.fillText('+-- --+', (pos.col - 2) * CELL_W, (hFloorY - 4) * CELL_H);
           ctx.fillText(`| ${hero.name} |`, (pos.col - 2) * CELL_W, (hFloorY - 3) * CELL_H);
         }
 
-        // Подсветка цели лечения/стены
         if (isTargetedByHeal) {
           ctx.fillStyle = '#39ff14';
           ctx.fillText('[ ЦЕЛЬ ]', (pos.col - 1) * CELL_W, (hFloorY - 4.5) * CELL_H);
         }
 
-        // Стена-щит перед союзником
         if (hero.hasShield) {
           ctx.fillStyle = '#38bdf8';
           ctx.fillText('|===|', (pos.col + 3) * CELL_W, (hFloorY - 2) * CELL_H);
         }
 
-        // Фигура героя (ноги L L стоят строго на уровне hFloorY)
+        // Фигура героя
         ctx.fillStyle = hero.color;
         ctx.shadowColor = hero.color;
         ctx.shadowBlur = 6;
@@ -522,7 +508,7 @@ export const BattleScreen: React.FC<Props> = ({
 
         // HP
         ctx.fillStyle = '#22c55e';
-        ctx.fillText(`${hero.curHp}/${hero.hp}`, pos.col * CELL_W, (hFloorY + 1) * CELL_H);
+        ctx.fillText(`${hero.curHp}/${hero.maxHp}`, pos.col * CELL_W, (hFloorY + 1) * CELL_H);
       });
 
       // 4. Орки (крупные, стоят ногами I I на грунте)
@@ -534,8 +520,7 @@ export const BattleScreen: React.FC<Props> = ({
         const renderCol = orc.col + enemySpawnShiftX;
         const isAiming = aimingEnemyId === orc.id;
 
-        // Если в зоне АОЕ-прицела — подсвечиваем [!ЦЕЛЬ!]
-        if (activeSkill.category === 'AOE' && Math.hypot(orc.col - aimPos.x, oY(orc) - aimPos.y) <= 12) {
+        if (activeSkill.category === 'AOE' && Math.hypot(orc.col - aimPos.x, oFloorY - aimPos.y) <= 12) {
           ctx.fillStyle = '#ff0055';
           ctx.fillText('[!ЦЕЛЬ!]', (renderCol - 1) * CELL_W, (oFloorY - 4.5) * CELL_H);
         }
@@ -550,24 +535,18 @@ export const BattleScreen: React.FC<Props> = ({
         ctx.fillText(`${orc.hp}/${orc.maxHp}`, renderCol * CELL_W, (oFloorY + 1) * CELL_H);
       });
 
-      function oY(orc: EnemyCombatant) {
-        return scenario.getFloorRow(orc.col) + orc.rowOffset;
-      }
-
       // 5. Траектория прицеливания игрока
       if (scenePhase === 'BATTLE' && !activeVfx && (activeSkill.category === 'ATTACK' || activeSkill.category === 'AOE')) {
         const startPos = heroLayout[activeHeroIdx];
         const sX = startPos.col + 4;
         const sY = scenario.getFloorRow(startPos.col) + startPos.rowOffset - 2;
 
-        // Стабильная, немерцающая линия букв a t t a c k
         const steps = 14;
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
           const curX = sX + (aimPos.x - sX) * t;
           let curY = sY + (aimPos.y - sY) * t;
 
-          // Честная парабола для бомб/бревна
           if (activeSkill.trajectory === 'PARABOLA') {
             curY -= Math.sin(t * Math.PI) * 7;
           }
@@ -577,11 +556,9 @@ export const BattleScreen: React.FC<Props> = ({
           ctx.fillText(letters[i % letters.length], curX * CELL_W, curY * CELL_H);
         }
 
-        // Прицел
         ctx.fillStyle = '#00fff2';
         ctx.fillText('[+]', (aimPos.x - 1) * CELL_W, aimPos.y * CELL_H);
 
-        // Индикатор зоны поражения АОЕ
         if (activeSkill.category === 'AOE') {
           ctx.fillStyle = '#ff0055';
           ctx.fillText('(==== РАДИУС ВЗРЫВА ====)', (aimPos.x - 12) * CELL_W, (aimPos.y + 2) * CELL_H);
