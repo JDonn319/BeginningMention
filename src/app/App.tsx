@@ -22,30 +22,43 @@ export const App: React.FC = () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+        /* ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ ЭКРАНА БЕЗ РАМОК */
         .portrait-lock {
           display: none;
         }
         @media (orientation: portrait) {
           .portrait-lock {
-            position: fixed; inset: 0; background: #020010; z-index: 99999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-family: 'Press Start 2P', monospace; color: #00fff2; text-align: center; padding: 24px;
+            position: fixed;
+            inset: 0;
+            background: #020010;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Press Start 2P', monospace;
+            text-align: center;
+            padding: 24px;
           }
         }
 
         .fade-overlay {
-          position: fixed; inset: 0; background: #000; z-index: 9999; pointer-events: none;
+          position: fixed;
+          inset: 0;
+          background: #000;
+          z-index: 9999;
+          pointer-events: none;
           transition: opacity 0.5s ease;
         }
       `}</style>
 
-      {/* Оверлей блокировки при вертикальном положении */}
+      {/* Оверлей блокировки без рамок: просто чистый пиксельный текст */}
       <div className="portrait-lock">
-        <div style={{ border: '2px solid #00fff2', padding: '16px', maxWidth: '380px' }}>
-          <div>[ ! ] ПОВЕРНИТЕ УСТРОЙСТВО</div>
-          <div style={{ fontSize: '9px', marginTop: '14px', color: '#94a3b8', lineHeight: 1.8 }}>
-            ДЕРЖИТЕ ТЕЛЕФОН ГОРИЗОНТАЛЬНО ДЛЯ ИГРЫ
-          </div>
+        <div style={{ fontSize: '13px', color: '#00fff2', marginBottom: '16px' }}>
+          ПОВЕРНИТЕ УСТРОЙСТВО
+        </div>
+        <div style={{ fontSize: '9px', color: '#64748b', lineHeight: 1.8 }}>
+          ДЕРЖИТЕ ТЕЛЕФОН ГОРИЗОНТАЛЬНО
         </div>
       </div>
 
