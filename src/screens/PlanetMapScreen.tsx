@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PLANET_14_NODES, PlanetNode } from '../templates/asciiModels';
+import { theCaveScenario } from '../locations/theCave';
+import { LocationScenario } from '../locations/types';
 
 interface Props {
-  onEnterCave: () => void;
+  onStartScenario: (scenario: LocationScenario) => void;
   onBackToMenuConfirmed: () => void;
 }
 
-export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConfirmed }) => {
+export const PlanetMapScreen: React.FC<Props> = ({ onStartScenario, onBackToMenuConfirmed }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rotYRef = useRef<number>(0.4);
   const rotXRef = useRef<number>(0.15);
@@ -55,7 +57,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Глубокий космос
       ctx.fillStyle = '#020010';
       ctx.fillRect(0, 0, w, h);
 
@@ -74,7 +75,7 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
       }
       ctx.globalAlpha = 1;
 
-      // Внутренность сферы полностью заполнена символами + поверх темные континенты
+      // Символьная планета с процедурными темно-синими материками
       const baseChars = '01#*+%:;.~';
       ctx.font = `${Math.max(6, Math.floor(R / 24))}px monospace`;
       ctx.textAlign = 'center';
@@ -87,7 +88,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
           [x, y, z] = rot3(x, y, z, rotXRef.current, rotYRef.current);
           if (z < 0) continue;
 
-          // Процедурные материки
           const continentNoise = Math.sin(lat * 0.08) * Math.cos(lon * 0.08) + hash(lat, lon) * 0.4;
           const isContinent = continentNoise > 0.15;
 
@@ -98,18 +98,16 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
           const py = cy - y * R;
 
           if (isContinent) {
-            // Темно-синий массивный материк
             ctx.fillStyle = `rgba(14, 38, 95, ${0.7 + bri * 0.3})`;
             ctx.fillText('#', px, py);
           } else {
-            // Океан из светящихся мелких символов
             ctx.fillStyle = `rgba(0, 180, 240, ${0.2 + bri * 0.4})`;
             ctx.fillText(baseChars[ci], px, py);
           }
         }
       }
 
-      // Проекция 14 нод
+      // Проекция нод
       const proj = PLANET_14_NODES.map((node) => {
         let [x, y, z] = latlon(node.lat, node.lon);
         [x, y, z] = rot3(x, y, z, rotXRef.current, rotYRef.current);
@@ -121,7 +119,7 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
         };
       });
 
-      // Линии между локациями на материках
+      // Пунктирные связующие линии
       ctx.setLineDash([3, 4]);
       PLANET_14_NODES.forEach((node) => {
         const a = proj[node.id];
@@ -211,7 +209,6 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
       const dist = Math.hypot(e.clientX - rect.left - px, e.clientY - rect.top - py);
       if (dist < 26) {
         if (node.id === 0) {
-          // Клик на Пещеру: активируем чистое описание сверху слева
           setActiveCaveBriefing(true);
         } else {
           setSelectedNode(node);
@@ -230,18 +227,18 @@ export const PlanetMapScreen: React.FC<Props> = ({ onEnterCave, onBackToMenuConf
         style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
       />
 
-      {/* ОПИСАНИЕ ПЕЩЕРЫ: СВЕРХУ СЛЕВА, ЧИСТЫЙ ТЕКСТ БЕЗ РАМОК */}
+      {/* ОПИСАНИЕ ПЕЩЕРЫ: ЧИСТЫЙ ТЕКСТ БЕЗ РАМОК СВЕРХУ СЛЕВА */}
       {activeCaveBriefing && (
-        <div style={{ position: 'absolute', top: 24, left: 24, zIndex: 10, maxWidth: '420px', pointerEvents: 'auto' }}>
+        <div style={{ position: 'absolute', top: 24, left: 24, zIndex: 10, maxWidth: '440px', pointerEvents: 'auto' }}>
           <div style={{ fontSize: '18px', color: '#00fff2', letterSpacing: '2px', textShadow: '0 0 10px #00fff2' }}>
-            THE CAVE
+            {theCaveScenario.name}
           </div>
           <div style={{ fontSize: '10px', color: '#c8f0ff', lineHeight: 1.8, marginTop: '10px' }}>
-            пещера, в которой, по древним сказаниям, обитают орки и великаны.
+            {theCaveScenario.description}
           </div>
           <div style={{ marginTop: '16px', display: 'flex', gap: '14px' }}>
             <button
-              onClick={onEnterCave}
+              onClick={() => onStartScenario(theCaveScenario)}
               style={{ background: 'transparent', border: 'none', color: '#39ff14', fontFamily: 'inherit', fontSize: '11px', cursor: 'pointer', padding: 0, textShadow: '0 0 8px #39ff14' }}
             >
               [ ВОЙТИ В СЕКТОР ]
