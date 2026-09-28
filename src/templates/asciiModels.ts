@@ -19,14 +19,13 @@ export interface StarterHero {
   color: string;
   weaponName: string;
   maxAmmo: number;
-  // Массивный большой ASCII-спрайт оружия для боевого экрана
   largeWeaponAscii: string[];
-  // Спрайты персонажа без колен (ноги сразу L L)
   artBreath1: string[];
   artBreath2: string[];
   skills: [HeroSkill, HeroSkill];
 }
 
+// 6 СТАРТОВЫХ ПЕРСОНАЖЕЙ (БЕЗ КОЛЕН, НОГИ СРАЗУ L L)
 export const STARTER_HEROES: StarterHero[] = [
   {
     id: 'josef',
@@ -54,8 +53,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'impulse', name: 'Impulse (basic)', desc: 'Быстрый лазерный выстрел по прямой траектории. 10-15 урона. В голову 20 крит.', type: 'laser', ammoCost: 1 },
-      { id: 'loaded', name: 'Loaded Blast', desc: 'Запуск тяжелой фиолетовой бомбы по навесной дуге. 28-34 урона по площади взрыва.', type: 'bomb', ammoCost: 2 }
+      { id: 'impulse', name: 'Impulse (basic)', desc: 'Быстрый лазерный луч по прямой траектории. 10-15 урона. Голова: 20 крит.', type: 'laser', ammoCost: 1 },
+      { id: 'loaded', name: 'Loaded Blast', desc: 'Фиолетовая круглая бомба по навесной траектории. 28-34 урона с взрывной волной.', type: 'bomb', ammoCost: 2 }
     ]
   },
   {
@@ -114,7 +113,7 @@ export const STARTER_HEROES: StarterHero[] = [
     ],
     skills: [
       { id: 'runes', name: 'Атака Рунами', desc: 'Выпускает 2-3 парящие руны эфира. 5-8 урона каждая.', type: 'runes', ammoCost: 0 },
-      { id: 'silence', name: 'Запрет Чар', desc: 'Запрещает выбранному орку кидать валуны на 1 ход.', type: 'shield', ammoCost: 0 }
+      { id: 'silence', name: 'Запрет Чар', desc: 'Запрещает выбранному врагу кидать камни на 1 ход.', type: 'shield', ammoCost: 0 }
     ]
   },
   {
@@ -216,7 +215,7 @@ export const ORC_MODEL = {
   color: '#84cc16'
 };
 
-// 14 НОД, СГРУППИРОВАННЫХ ПО МАТЕРИКАМ
+// 14 НОД ПЛАНЕТЫ
 export interface PlanetNode {
   id: number;
   name: string;
@@ -228,27 +227,18 @@ export interface PlanetNode {
 }
 
 export const PLANET_14_NODES: PlanetNode[] = [
-  // Материк 1: Скалистый Хребет (Ноды 0, 1, 2)
-  { id: 0,  name: 'Пещера',    lat: 15,  lon: -25, links: [1, 2],    continent: 'Скалистый Хребет', isUnlocked: true },
-  { id: 1,  name: 'Утес Костей',lat: 28, lon: -10, links: [0, 2],    continent: 'Скалистый Хребет', isUnlocked: false },
-  { id: 2,  name: 'Врата Бездны',lat: -5,lon: -30, links: [0, 3],    continent: 'Скалистый Хребет', isUnlocked: false },
-
-  // Материк 2: Астральные Низины (Ноды 3, 4, 5)
-  { id: 3,  name: 'Руины Эфира',lat: 38, lon: 45,  links: [4, 5],    continent: 'Астральные Низины', isUnlocked: false },
-  { id: 4,  name: 'Башня Ветров',lat: 18,lon: 60,  links: [3, 5],    continent: 'Астральные Низины', isUnlocked: false },
+  { id: 0,  name: 'Пещера',     lat: 15,  lon: -25, links: [1, 2],    continent: 'Скалистый Хребет', isUnlocked: true },
+  { id: 1,  name: 'Утес Костей',lat: 28,  lon: -10, links: [0, 2],    continent: 'Скалистый Хребет', isUnlocked: false },
+  { id: 2,  name: 'Врата Бездны',lat: -5, lon: -30, links: [0, 3],    continent: 'Скалистый Хребет', isUnlocked: false },
+  { id: 3,  name: 'Руины Эфира',lat: 38,  lon: 45,  links: [4, 5],    continent: 'Астральные Низины', isUnlocked: false },
+  { id: 4,  name: 'Башня Ветров',lat: 18, lon: 60,  links: [3, 5],    continent: 'Астральные Низины', isUnlocked: false },
   { id: 5,  name: 'Лазурный Разлом',lat: -12,lon: 50, links: [6],     continent: 'Астральные Низины', isUnlocked: false },
-
-  // Материк 3: Вулканический Пояс (Ноды 6, 7, 8)
   { id: 6,  name: 'Кратер Пепла',lat: -30,lon: 95, links: [7, 8],    continent: 'Вулканический Пояс', isUnlocked: false },
   { id: 7,  name: 'Магма-Ривер',lat: -10,lon: 120,links: [6, 8],    continent: 'Вулканический Пояс', isUnlocked: false },
   { id: 8,  name: 'Черные Сопки',lat: 10, lon: 110,links: [9],       continent: 'Вулканический Пояс', isUnlocked: false },
-
-  // Материк 4: Замерзшая Пустошь (Ноды 9, 10, 11)
   { id: 9,  name: 'Ледяной Шпиль',lat: 52,lon: 170,links: [10],      continent: 'Замерзшая Пустошь', isUnlocked: false },
   { id: 10, name: 'Хрустальный Грот',lat: 30,lon: -150,links: [11],  continent: 'Замерзшая Пустошь', isUnlocked: false },
   { id: 11, name: 'Мертвый Лед',lat: -20,lon: -140,links: [12],      continent: 'Замерзшая Пустошь', isUnlocked: false },
-
-  // Материк 5: Цифровое Ядро (Ноды 12, 13)
   { id: 12, name: 'Терминал Входа',lat: -40,lon: -70,links: [13],    continent: 'Цифровое Ядро', isUnlocked: false },
   { id: 13, name: 'Сингулярность Core',lat: 0,lon: 0,links: [],       continent: 'Цифровое Ядро', isUnlocked: false }
 ];
