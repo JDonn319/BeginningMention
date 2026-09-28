@@ -1,76 +1,73 @@
 import React, { useState } from 'react';
 import { MainMenuScreen } from '../screens/MainMenuScreen';
-import { OperatorSelectScreen } from '../screens/OperatorSelectScreen';
+import { CharacterSelectScreen } from '../screens/CharacterSelectScreen';
 import { PlanetMapScreen } from '../screens/PlanetMapScreen';
-import { BattleScreen } from '../screens/BattleScreen';
-import { PLANET_LEVELS } from '../templates/asciiModels';
 
 export const App: React.FC = () => {
-  const [screen, setScreen] = useState<'MENU' | 'OPERATORS' | 'MAP' | 'BATTLE'>('MENU');
-  const [selectedOpIds, setSelectedOpIds] = useState<string[]>(['josef', 'michael', 'kyle', 'artemis']);
-  const [unlockedOpIds, setUnlockedOpIds] = useState<string[]>([]);
-  const [currentLevelId, setCurrentLevelId] = useState<number>(0);
-  const [completedNodeIds, setCompletedNodeIds] = useState<number[]>([]);
-  const [unlockedNodeIds, setUnlockedNodeIds] = useState<number[]>([0]);
+  const [screen, setScreen] = useState<'MENU' | 'CHAR_SELECT' | 'GLOBE'>('MENU');
+  const [fadeOpacity, setFadeOpacity] = useState<number>(0);
 
-  const handleBattleEnd = (won: boolean) => {
-    if (won) {
-      if (!completedNodeIds.includes(currentLevelId)) {
-        setCompletedNodeIds([...completedNodeIds, currentLevelId]);
-      }
-      // Открываем следующий уровень и нового героя при победе
-      const lvl = PLANET_LEVELS[currentLevelId];
-      lvl.links.forEach((linkId) => {
-        if (!unlockedNodeIds.includes(linkId)) {
-          setUnlockedNodeIds((prev) => [...prev, linkId]);
-        }
-      });
-
-      // Открытие персонажа за сектор
-      const unlockReward: Record<number, string> = { 0: 'demid', 1: 'nyx', 2: 'orion', 3: 'vera' };
-      if (unlockReward[currentLevelId] && !unlockedOpIds.includes(unlockReward[currentLevelId])) {
-        setUnlockedOpIds([...unlockedOpIds, unlockReward[currentLevelId]]);
-      }
-    }
-    setScreen('MAP');
+  // Плавный переход с затемнением в 1 секунду
+  const transitionTo = (nextScreen: 'MENU' | 'CHAR_SELECT' | 'GLOBE') => {
+    setFadeOpacity(1);
+    setTimeout(() => {
+      setScreen(nextScreen);
+      setTimeout(() => {
+        setFadeOpacity(0);
+      }, 300);
+    }, 500);
   };
 
   return (
     <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        /* ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ ЭКРАНА */
+        .portrait-lock {
+          display: none;
+        }
+        @media (orientation: portrait) {
+          .portrait-lock {
+            position: fixed; inset: 0; background: #020010; z-index: 99999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', monospace; color: #00fff2; text-align: center; padding: 24px;
+          }
+        }
+
+        .fade-overlay {
+          position: fixed; inset: 0; background: #000; z-index: 9999; pointer-events: none;
+          transition: opacity 0.5s ease;
+        }
+      `}</style>
+
+      {/* Оверлей блокировки при вертикальном положении */}
+      <div className="portrait-lock">
+        <div style={{ border: '2px solid #00fff2', padding: '16px', maxWidth: '380px' }}>
+          <div>[ ! ] ПОВЕРНИТЕ УСТРОЙСТВО</div>
+          <div style={{ fontSize: '9px', marginTop: '14px', color: '#94a3b8', lineHeight: 1.8 }}>
+            ДЕРЖИТЕ ТЕЛЕФОН ГОРИЗОНТАЛЬНО ДЛЯ ИГРЫ
+          </div>
+        </div>
+      </div>
+
+      {/* Затемнение экрана при переходах */}
+      <div className="fade-overlay" style={{ opacity: fadeOpacity }} />
+
       {screen === 'MENU' && (
-        <MainMenuScreen onStartGame={() => setScreen('OPERATORS')} />
+        <MainMenuScreen onStartNewGame={() => transitionTo('CHAR_SELECT')} />
       )}
 
-      {screen === 'OPERATORS' && (
-        <OperatorSelectScreen
-          selectedIds={selectedOpIds}
-          unlockedIds={unlockedOpIds}
-          onConfirm={(ids) => {
-            setSelectedOpIds(ids);
-            setScreen('MAP');
-          }}
-          onBack={() => setScreen('MENU')}
+      {screen === 'CHAR_SELECT' && (
+        <CharacterSelectScreen
+          onSquadConfirmed={() => transitionTo('GLOBE')}
+          onExitToMenu={() => transitionTo('MENU')}
         />
       )}
 
-      {screen === 'MAP' && (
+      {screen === 'GLOBE' && (
         <PlanetMapScreen
-          completedNodeIds={completedNodeIds}
-          unlockedNodeIds={unlockedNodeIds}
-          onSelectNode={(lvlId) => {
-            setCurrentLevelId(lvlId);
-            setScreen('BATTLE');
-          }}
-          onOpenSquad={() => setScreen('OPERATORS')}
-          onBackToMenu={() => setScreen('MENU')}
-        />
-      )}
-
-      {screen === 'BATTLE' && (
-        <BattleScreen
-          level={PLANET_LEVELS[currentLevelId]}
-          selectedOperatorIds={selectedOpIds}
-          onBattleEnd={handleBattleEnd}
+          onBackToMenuConfirmed={() => transitionTo('MENU')}
         />
       )}
     </>
