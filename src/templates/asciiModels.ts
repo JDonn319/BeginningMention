@@ -19,6 +19,7 @@ export interface StarterHero {
   skills: [HeroSkill, HeroSkill];
 }
 
+// Все персонажи отцентрованы по строгой оси (голова строго над позвоночником)
 export const STARTER_HEROES: StarterHero[] = [
   {
     id: 'josef',
@@ -28,16 +29,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 0,
     color: '#c084fc',
     artBreath1: [
-      '    o    ',
-      '  /|\\=  ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      '  /|#|\\=-',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    o    ',
-      '  (|\\=  ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      '  (|#|)=-',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Выстрел Бластера', desc: 'Фокусированный лазерный луч. 22 урона. Голова: 100% крит.' },
@@ -52,16 +53,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 45,
     color: '#3b82f6',
     artBreath1: [
-      '    o    ',
-      '  /|#||  ',
-      '  | |   ',
-      '  L L   '
+      '   [o]   ',
+      ' =/|#|\\= ',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    o    ',
-      '  (|#||  ',
-      '  | |   ',
-      '  L L   '
+      '   [o]   ',
+      ' =(|#|)= ',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Бросок Бревна', desc: 'Вращающееся дубовое бревно. 28 урона. Сбивает цель с ног.' },
@@ -76,16 +77,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 15,
     color: '#22c55e',
     artBreath1: [
-      '    o    ',
-      '  /|\\*  ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      ' */|#|\\  ',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    o    ',
-      '  (|\\*  ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      ' *(#|#)  ',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Рунный Веер', desc: 'Запуск 3 парящих рун эфира. 24 суммарного урона.' },
@@ -100,16 +101,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 10,
     color: '#80ed99',
     artBreath1: [
-      '    p    ',
-      '  /E\\   ',
-      '  / \\   ',
-      '  L L   '
+      '   (p)   ',
+      '  /|E|\\+ ',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    p    ',
-      '  (E\\   ',
-      '  / \\   ',
-      '  L L   '
+      '   (p)   ',
+      '  (|E|)+ ',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Полевое Лечение', desc: 'Восстанавливает 35 HP выбранному союзнику.' },
@@ -124,16 +125,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 5,
     color: '#f97316',
     artBreath1: [
-      '    o    ',
-      '  /|\\-- ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      '  /|#|\\--',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    o    ',
-      '  (|\\-- ',
-      '  / \\   ',
-      '  L L   '
+      '   (o)   ',
+      '  (|#|)--',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Бросок Копья', desc: 'Световое копье. Урон растет от дистанции: от 12 до 40.' },
@@ -148,16 +149,16 @@ export const STARTER_HEROES: StarterHero[] = [
     armor: 30,
     color: '#ffd60a',
     artBreath1: [
-      '    +    ',
-      '  /O\\   ',
-      '  | |   ',
-      '  L L   '
+      '   (+)   ',
+      '  /|O|\\* ',
+      '   | |   ',
+      '   L L   '
     ],
     artBreath2: [
-      '    +    ',
-      '  (O\\   ',
-      '  | |   ',
-      '  L L   '
+      '   (+)   ',
+      '  (|O|)* ',
+      '   | |   ',
+      '   L L   '
     ],
     skills: [
       { name: 'Солнечный Сокрушитель', desc: 'Мощный выпад клинком света на 30 урона.' },
