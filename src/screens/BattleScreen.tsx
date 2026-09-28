@@ -21,7 +21,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
   const [selectedSkillIdx, setSelectedSkillIdx] = useState<number>(0);
   const [inspectedSkill, setInspectedSkill] = useState<HeroSkill | null>(null);
 
-  // Спецэффекты
+  // Спецэффекты (VFX)
   const [activeVfx, setActiveVfx] = useState<{ type: string; progress: number } | null>(null);
   const [screenShake, setScreenShake] = useState<number>(0);
   const [combatLog, setCombatLog] = useState<string>(`ВЫСАДКА: [ ${level.name} ]`);
@@ -38,7 +38,6 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
   const executePlayerSkill = (skill: HeroSkill) => {
     if (activeVfx || currentTurnUnitId === 'BOSS') return;
 
-    // Анимация полета снаряда
     setActiveVfx({ type: skill.vfx, progress: 0 });
     const startT = Date.now();
     const duration = 500;
@@ -51,7 +50,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         clearInterval(vfxInterval);
         setActiveVfx(null);
 
-        // Нанесение урона или щита/лечения
+        // Нанесение урона, барьера или лечения
         if (skill.type === 'dmg') {
           const dmg = skill.value + Math.floor(Math.random() * 8);
           setBossHp((prev) => Math.max(0, prev - dmg));
@@ -69,6 +68,8 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
             }))
           );
           setFloatingText({ text: `+${skill.value} HP`, x: 25, y: 22, col: '#39ff14' });
+        } else if (skill.type === 'curse') {
+          setFloatingText({ text: '[ЗАПРЕТ ЧАР]', x: 74, y: 15, col: '#f59e0b' });
         }
 
         setTimeout(() => {
@@ -80,7 +81,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
   };
 
   // ----------------------------------------------------
-  // ОЧЕРЕДЬ И ХОД УМНОГО БОССА
+  // ОЧЕРЕДЬ И ХОД БОССА
   // ----------------------------------------------------
   const advanceTurnQueue = () => {
     const nextQueue = [...turnOrder.slice(1), turnOrder[0]];
@@ -98,7 +99,6 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
       return;
     }
 
-    // ИИ босса бьет раненого или первого в ряду
     const target = [...aliveHeroes].sort((a, b) => a.curHp - b.curHp)[0];
     const skill = level.boss.skills[Math.floor(Math.random() * level.boss.skills.length)];
 
@@ -132,7 +132,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
     }, 500);
   };
 
-  // Проверка конца боя
+  // Проверка исхода боя
   useEffect(() => {
     if (bossHp <= 0) {
       setTimeout(() => onBattleEnd(true), 600);
@@ -209,13 +209,13 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
       const bossFrameIdx = Math.floor(tick / 18) % level.boss.frames.length;
       const curFrame = level.boss.frames[bossFrameIdx];
       const bossFloatY = Math.sin(tick * 0.08) * 1.5;
-      const bX = 64;
+      const bX = 62;
       const bY = 10 + bossFloatY;
 
       // HP полоса босса над ним
       ctx.fillStyle = '#ff2233';
-      const hpLen = Math.floor((bossHp / bossMaxHp) * 24);
-      ctx.fillText(`[${'='.repeat(hpLen)}${'-'.repeat(24 - hpLen)}] ${bossHp}/${bossMaxHp}`, bX * CELL_W, (bY - 2) * CELL_H);
+      const hpLen = Math.floor((bossHp / bossMaxHp) * 26);
+      ctx.fillText(`[${'='.repeat(hpLen)}${'-'.repeat(26 - hpLen)}] ${bossHp}/${bossMaxHp}`, bX * CELL_W, (bY - 2) * CELL_H);
 
       curFrame.forEach((line, li) => {
         ctx.fillStyle = line.color;
@@ -223,7 +223,8 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
       });
 
       // 3. ОТРИСОВКА ГЕРОЕВ В 2 ОБЪЕМНЫХ РЯДА
-      // Нижний ряд: левее и ниже (Row 1). Верхний ряд: выше и правее (Row 2).
+      // Нижний ряд (ближе к экрану): левее и ниже.
+      // Верхний ряд (дальше по склону): выше и правее.
       const rowLayout = [
         { x: 12, yOff: 1 },  // Нижний левый (Josef)
         { x: 26, yOff: -3 }, // Верхний правый (Kyle)
@@ -237,7 +238,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         const isActive = hero.id === currentTurnUnitId;
         const breath = Math.sin(tick * 0.1 + i) * 0.5;
 
-        // Если активен — рисуем рамку тайма
+        // Рамка тайма на активном герое
         if (isActive) {
           ctx.fillStyle = '#00fff2';
           ctx.fillText('+-- --+', (layout.x - 2) * CELL_W, (hY - 4) * CELL_H);
@@ -250,12 +251,18 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
           ctx.fillText(l, layout.x * CELL_W, (hY - 2 + li + breath) * CELL_H);
         });
 
+        // Щит над героем
+        if (hero.shield > 0) {
+          ctx.fillStyle = '#00fff2';
+          ctx.fillText(`[S:${hero.shield}]`, layout.x * CELL_W, (hY - 5) * CELL_H);
+        }
+
         // HP
         ctx.fillStyle = hero.curHp < 40 ? '#ef4444' : '#22c55e';
         ctx.fillText(`${hero.curHp}/${hero.hp}`, layout.x * CELL_W, (hY + 2) * CELL_H);
       });
 
-      // 4. СПЕЦЭФФЕКТЫ (VFX)
+      // 4. СПЕЦЭФФЕКТЫ (VFX ДЛЯ КАЖДОГО ТИПА НАВЫКА)
       if (activeVfx) {
         const tX = 72;
         const tY = 16;
@@ -280,6 +287,15 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         } else if (activeVfx.type === 'spear') {
           ctx.fillStyle = '#ffffff';
           ctx.fillText('------->+', (20 + (tX - 20) * activeVfx.progress) * CELL_W, tY * CELL_H);
+        } else if (activeVfx.type === 'bomb') {
+          ctx.fillStyle = '#f97316';
+          ctx.fillText('(( БОМБА ))', (20 + (tX - 20) * activeVfx.progress) * CELL_W, tY * CELL_H);
+        } else if (activeVfx.type === 'shield') {
+          ctx.fillStyle = '#00fff2';
+          ctx.fillText('|=== БАРЬЕР ===|', 20 * CELL_W, 25 * CELL_H);
+        } else if (activeVfx.type === 'heal') {
+          ctx.fillStyle = '#22c55e';
+          ctx.fillText('++♥ [ЛЕЧЕНИЕ] ♥++', (16 + activeVfx.progress * 6) * CELL_W, (22 - activeVfx.progress * 4) * CELL_H);
         }
       }
 
@@ -294,7 +310,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [party, bossHp, level, currentTurnUnitId, activeVfx, screenShake, floatingText]);
+  }, [party, bossHp, bossMaxHp, level, currentTurnUnitId, activeVfx, screenShake, floatingText]);
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020010', overflow: 'hidden' }}>
