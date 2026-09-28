@@ -8,33 +8,53 @@ interface Props {
 }
 
 export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBattleEnd }) => {
-  const [party, setParty] = useState<(Operator & { curHp: number; shield: number; isDead: boolean })[]>(() =>
-    selectedOperatorIds.map((id) => {
+  const [party, setParty] = useState<(Operator & { curHp: number; shield: number; isDead: boolean })[]>(() => {
+    const list = selectedOperatorIds.map((id) => {
       const op = ALL_OPERATORS.find((o) => o.id === id) || ALL_OPERATORS[0];
       return { ...op, curHp: op.hp, shield: 0, isDead: false };
-    })
-  );
+    });
+    // Сортировка по PING: самый быстрый начинает первым
+    return list.sort((a, b) => a.ping - b.ping);
+  });
 
   const [bossHp, setBossHp] = useState<number>(level.boss.hp);
   const [bossMaxHp] = useState<number>(level.boss.hp);
-  const [turnOrder, setTurnOrder] = useState<string[]>(['BOSS', ...selectedOperatorIds]);
+
+  // Очередь ходов: начинается с самого быстрого героя!
+  const [turnOrder, setTurnOrder] = useState<string[]>(() => [
+    ...selectedOperatorIds,
+    'BOSS'
+  ]);
+
   const [selectedSkillIdx, setSelectedSkillIdx] = useState<number>(0);
   const [inspectedSkill, setInspectedSkill] = useState<HeroSkill | null>(null);
 
-  // Спецэффекты (VFX)
+  // Спецэффекты
   const [activeVfx, setActiveVfx] = useState<{ type: string; progress: number } | null>(null);
   const [screenShake, setScreenShake] = useState<number>(0);
   const [combatLog, setCombatLog] = useState<string>(`ВЫСАДКА: [ ${level.name} ]`);
   const [floatingText, setFloatingText] = useState<{ text: string; x: number; y: number; col: string } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bossTurnRunningRef = useRef<boolean>(false);
 
   const currentTurnUnitId = turnOrder[0];
   const activeHero = party.find((p) => p.id === currentTurnUnitId);
 
   // ----------------------------------------------------
-  // ИСПОЛНЕНИЕ АТАКИ ИЛИ НАВЫКА
+  // ГАРАНТИРОВАННЫЙ ХОД БОССА БЕЗ ЗАВИСАНИЙ
   // ----------------------------------------------------
+  useEffect(() => {
+    if (turnOrder[0] === 'BOSS' && !bossTurnRunningRef.current && bossHp > 0) {
+      bossTurnRunningRef.current = true;
+      const timer = setTimeout(() => {
+        executeBossTurn(turnOrder);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [turnOrder, bossHp]);
+
+  // Ход игрока
   const executePlayerSkill = (skill: HeroSkill) => {
     if (activeVfx || currentTurnUnitId === 'BOSS') return;
 
@@ -50,12 +70,11 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         clearInterval(vfxInterval);
         setActiveVfx(null);
 
-        // Нанесение урона, барьера или лечения
         if (skill.type === 'dmg') {
           const dmg = skill.value + Math.floor(Math.random() * 8);
           setBossHp((prev) => Math.max(0, prev - dmg));
-          setScreenShake(4);
-          setFloatingText({ text: `-${dmg}`, x: 74, y: 15, col: '#ff0055' });
+          setScreenShake(5);
+          setFloatingText({ text: `-${dmg}`, x: 74, y: 14, col: '#ff0055' });
         } else if (skill.type === 'shield') {
           setParty((prev) => prev.map((p) => ({ ...p, shield: p.shield + skill.value })));
           setFloatingText({ text: `+${skill.value} ЩИТ`, x: 25, y: 22, col: '#00fff2' });
@@ -68,8 +87,6 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
             }))
           );
           setFloatingText({ text: `+${skill.value} HP`, x: 25, y: 22, col: '#39ff14' });
-        } else if (skill.type === 'curse') {
-          setFloatingText({ text: '[ЗАПРЕТ ЧАР]', x: 74, y: 15, col: '#f59e0b' });
         }
 
         setTimeout(() => {
@@ -80,18 +97,12 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
     }, 20);
   };
 
-  // ----------------------------------------------------
-  // ОЧЕРЕДЬ И ХОД БОССА
-  // ----------------------------------------------------
   const advanceTurnQueue = () => {
     const nextQueue = [...turnOrder.slice(1), turnOrder[0]];
     setTurnOrder(nextQueue);
-
-    if (nextQueue[0] === 'BOSS') {
-      setTimeout(() => executeBossTurn(nextQueue), 700);
-    }
   };
 
+  // Ход Босса
   const executeBossTurn = (queue: string[]) => {
     const aliveHeroes = party.filter((p) => !p.isDead);
     if (aliveHeroes.length === 0) {
@@ -103,7 +114,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
     const skill = level.boss.skills[Math.floor(Math.random() * level.boss.skills.length)];
 
     setCombatLog(`${level.boss.name} ПРИМЕНЯЕТ: [ ${skill.name} ]`);
-    setScreenShake(6);
+    setScreenShake(7);
 
     setTimeout(() => {
       setParty((prev) =>
@@ -126,13 +137,13 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
 
       setTimeout(() => {
         setScreenShake(0);
+        bossTurnRunningRef.current = false;
         const afterBoss = [...queue.slice(1), 'BOSS'];
         setTurnOrder(afterBoss);
       }, 400);
-    }, 500);
+    }, 550);
   };
 
-  // Проверка исхода боя
   useEffect(() => {
     if (bossHp <= 0) {
       setTimeout(() => onBattleEnd(true), 600);
@@ -140,7 +151,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
   }, [bossHp, onBattleEnd]);
 
   // ----------------------------------------------------
-  // РЕНДЕР КАНВАСА (БИОМ, 2 РЯДА, БОСС, VFX)
+  // 3D-ОКЕАН, ПЛОТ И ЖУТКИЙ КРАКЕН
   // ----------------------------------------------------
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -163,7 +174,6 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Тряска экрана
       const sx = screenShake > 0 ? (Math.random() - 0.5) * screenShake * 2 : 0;
       const sy = screenShake > 0 ? (Math.random() - 0.5) * screenShake * 2 : 0;
       ctx.translate(sx, sy);
@@ -176,101 +186,139 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
       ctx.font = `${Math.floor(CELL_H * 0.95)}px monospace`;
       ctx.textBaseline = 'top';
 
-      const groundBaseY = 28;
+      const groundBaseY = 27;
 
-      // 1. ОТРИСОВКА БИОМА
+      // 1. НАСТОЯЩИЙ 3D ОКЕАН С ПЕРСПЕКТИВОЙ
       if (level.biomeType === 'RAFT') {
-        // Качающийся 3D деревянный плот на анимированной воде
-        const waveShift = Math.sin(tick * 0.1) * 2;
-        ctx.fillStyle = '#0284c7';
-        for (let x = 0; x < 100; x += 4) {
-          ctx.fillText('~ ~ ~', x * CELL_W, (groundBaseY + 2 + Math.sin(x + tick * 0.1)) * CELL_H);
+        // Перспективные слои волн от горизонта к камере
+        for (let row = 20; row < 42; row++) {
+          const depth = (row - 20) / 22; // 0 у горизонта, 1 у камеры
+          const waveSpeed = tick * (0.05 + depth * 0.05);
+          const colorIntensity = Math.floor(100 + depth * 155);
+          ctx.fillStyle = `rgba(0, ${colorIntensity}, 255, ${0.25 + depth * 0.75})`;
+
+          let waveRowStr = '';
+          for (let col = 0; col < 100; col += 4) {
+            const waveY = Math.sin(col * 0.15 + waveSpeed - depth * 4);
+            if (waveY > 0.4) waveRowStr += ' ~~~';
+            else if (waveY < -0.4) waveRowStr += ' ===';
+            else waveRowStr += '  ..';
+          }
+          ctx.fillText(waveRowStr, 0, row * CELL_H);
         }
-        // Плот под героями
+
+        // 2. ДЕРЕВЯННЫЙ ПЛОТ С ФИЗИКОЙ ВОЛН (КАЧКА ВВЕРХ-ВНИЗ И КРЕН)
+        const raftDip = Math.sin(tick * 0.08) * 2.2;
+        const raftY = groundBaseY + raftDip;
+
+        ctx.fillStyle = '#92400e';
+        ctx.fillText('  /===========================================\\  ', 6 * CELL_W, (raftY - 1) * CELL_H);
         ctx.fillStyle = '#b45309';
-        ctx.fillText('[===================================]', 8 * CELL_W, (groundBaseY + waveShift * 0.2) * CELL_H);
-        ctx.fillText('| # # # # # # # # # # # # # # # # # |', 8 * CELL_W, (groundBaseY + 1 + waveShift * 0.2) * CELL_H);
-      } else if (level.biomeType === 'MOUNTAIN') {
-        // Скалистый пик
-        for (let x = 0; x < 100; x++) {
-          const mY = groundBaseY - Math.floor(x * 0.1) + Math.floor(Math.sin(x * 0.2) * 2);
-          ctx.fillStyle = '#78350f';
-          ctx.fillText('#', x * CELL_W, mY * CELL_H);
-        }
+        ctx.fillText(' |  [#]=====[#]=====[#]=====[#]=====[#]=====[#] | ', 6 * CELL_W, raftY * CELL_H);
+        ctx.fillStyle = '#78350f';
+        ctx.fillText(' |  ###     ###     ###     ###     ###     ### | ', 6 * CELL_W, (raftY + 1) * CELL_H);
+        ctx.fillText('  \\===========================================/  ', 6 * CELL_W, (raftY + 2) * CELL_H);
+
+        // Пена вокруг плота
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText('~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~', 5 * CELL_W, (raftY + 2.5) * CELL_H);
+
+        // 3. ОТРИСОВКА ГЕРОЕВ — СТРОГО НА НАСТИЛЕ ПЛОТА!
+        // Нижний ряд (левее и ниже), верхний ряд (правее и выше). Никакого зависания в воздухе!
+        const raftHeroSlots = [
+          { x: 12, deckY: raftY - 2 },   // Josef (ряд 1)
+          { x: 26, deckY: raftY - 2.8 }, // Kyle (ряд 2)
+          { x: 18, deckY: raftY - 1.6 }, // Michael (ряд 1)
+          { x: 32, deckY: raftY - 2.5 }  // Artemis (ряд 2)
+        ];
+
+        party.forEach((hero, i) => {
+          const slot = raftHeroSlots[i] || { x: 14 + i * 8, deckY: raftY - 2 };
+          const isActive = hero.id === currentTurnUnitId;
+
+          if (isActive) {
+            ctx.fillStyle = '#00fff2';
+            ctx.fillText('+-- --+', (slot.x - 2) * CELL_W, (slot.deckY - 3) * CELL_H);
+            ctx.fillText(`| ${hero.name} |`, (slot.x - 2) * CELL_W, (slot.deckY - 2) * CELL_H);
+          }
+
+          ctx.fillStyle = hero.color;
+          hero.weaponArt.forEach((line, li) => {
+            ctx.fillText(line, slot.x * CELL_W, (slot.deckY - 1 + li) * CELL_H);
+          });
+
+          if (hero.shield > 0) {
+            ctx.fillStyle = '#00fff2';
+            ctx.fillText(`[S:${hero.shield}]`, slot.x * CELL_W, (slot.deckY - 4) * CELL_H);
+          }
+
+          ctx.fillStyle = hero.curHp < 40 ? '#ef4444' : '#22c55e';
+          ctx.fillText(`${hero.curHp}/${hero.hp}`, slot.x * CELL_W, (slot.deckY + 2.5) * CELL_H);
+        });
+
       } else {
-        // Кратер / пепел
+        // Обычные горы/кратер
         for (let x = 0; x < 100; x++) {
           ctx.fillStyle = '#334155';
           ctx.fillText('y+a*p+G*r', x * CELL_W, (groundBaseY + Math.sin(x * 0.1) * 2) * CELL_H);
         }
       }
 
-      // 2. БОСС С АНИМАЦИЕЙ
-      const bossFrameIdx = Math.floor(tick / 18) % level.boss.frames.length;
-      const curFrame = level.boss.frames[bossFrameIdx];
-      const bossFloatY = Math.sin(tick * 0.08) * 1.5;
-      const bX = 62;
-      const bY = 10 + bossFloatY;
+      // 4. ЖУТКИЙ ГЛУБИННЫЙ КРАКЕН (БЕЗ КОШАЧЬЕЙ МОРДЫ)
+      if (level.biomeType === 'RAFT') {
+        const bX = 58;
+        const bY = 7 + Math.sin(tick * 0.07) * 1.5;
 
-      // HP полоса босса над ним
-      ctx.fillStyle = '#ff2233';
-      const hpLen = Math.floor((bossHp / bossMaxHp) * 26);
-      ctx.fillText(`[${'='.repeat(hpLen)}${'-'.repeat(26 - hpLen)}] ${bossHp}/${bossMaxHp}`, bX * CELL_W, (bY - 2) * CELL_H);
+        // Полоса здоровья
+        ctx.fillStyle = '#ff2233';
+        const hpLen = Math.floor((bossHp / bossMaxHp) * 28);
+        ctx.fillText(`[${'='.repeat(hpLen)}${'-'.repeat(28 - hpLen)}] ${bossHp}/${bossMaxHp} HP`, bX * CELL_W, (bY - 2) * CELL_H);
 
-      curFrame.forEach((line, li) => {
-        ctx.fillStyle = line.color;
-        ctx.fillText(line.text, bX * CELL_W, (bY + li) * CELL_H);
-      });
+        // Шевелящиеся щупальца по бокам кракена (живая синусоида)
+        const tWave1 = Math.sin(tick * 0.1) * 2;
+        const tWave2 = Math.cos(tick * 0.1) * 2;
 
-      // 3. ОТРИСОВКА ГЕРОЕВ В 2 ОБЪЕМНЫХ РЯДА
-      // Нижний ряд (ближе к экрану): левее и ниже.
-      // Верхний ряд (дальше по склону): выше и правее.
-      const rowLayout = [
-        { x: 12, yOff: 1 },  // Нижний левый (Josef)
-        { x: 26, yOff: -3 }, // Верхний правый (Kyle)
-        { x: 18, yOff: 2 },  // Нижний центральный (Michael)
-        { x: 32, yOff: -2 }  // Верхний дальний (Artemis)
-      ];
+        ctx.fillStyle = '#00fff2';
+        ctx.shadowColor = '#00fff2';
+        ctx.shadowBlur = 8;
 
-      party.forEach((hero, i) => {
-        const layout = rowLayout[i] || { x: 14 + i * 8, yOff: 0 };
-        const hY = groundBaseY + layout.yOff;
-        const isActive = hero.id === currentTurnUnitId;
-        const breath = Math.sin(tick * 0.1 + i) * 0.5;
+        // Левое щупальце
+        ctx.fillText(`  ((~))      `, (bX - 10 + tWave1) * CELL_W, (bY + 3) * CELL_H);
+        ctx.fillText(`   \\~\\       `, (bX - 8 + tWave1) * CELL_W, (bY + 5) * CELL_H);
+        ctx.fillText(`  ((~))      `, (bX - 10 + tWave1) * CELL_W, (bY + 7) * CELL_H);
 
-        // Рамка тайма на активном герое
-        if (isActive) {
-          ctx.fillStyle = '#00fff2';
-          ctx.fillText('+-- --+', (layout.x - 2) * CELL_W, (hY - 4) * CELL_H);
-          ctx.fillText(`| ${hero.name} |`, (layout.x - 2) * CELL_W, (hY - 3) * CELL_H);
-        }
+        // Правое щупальце
+        ctx.fillText(`      ((~))  `, (bX + 32 + tWave2) * CELL_W, (bY + 3) * CELL_H);
+        ctx.fillText(`       /~/   `, (bX + 30 + tWave2) * CELL_W, (bY + 5) * CELL_H);
+        ctx.fillText(`      ((~))  `, (bX + 32 + tWave2) * CELL_W, (bY + 7) * CELL_H);
 
-        // Оружие и фигура
-        ctx.fillStyle = hero.color;
-        hero.weaponArt.forEach((l, li) => {
-          ctx.fillText(l, layout.x * CELL_W, (hY - 2 + li + breath) * CELL_H);
+        // Тело Левиафана
+        const krakenMantle = [
+          { text: '          .:: ЛЕВИАФАН ::.          ', col: '#38bdf8' },
+          { text: '        /####################\\       ', col: '#0284c7' },
+          { text: '       |  [o]   (O)    (O)   [o]  |      ', col: '#ff0055' }, // Глаза Бездны
+          { text: '       |     \\▼▼▼▼▼▼▼▼▼▼▼/        |      ', col: '#ffffff' }, // Пасть
+          { text: '        \\      ~~~~~~~~~~        /       ', col: '#0369a1' },
+          { text: '       ((( ~~~~~~~~~~~~~~~~~~~~ )))      ', col: '#00fff2' },
+          { text: '      ((((  КРАКЕН ГЛУБИН БЕЗДНЫ  ))))    ', col: '#0c4a6e' }
+        ];
+
+        krakenMantle.forEach((line, li) => {
+          ctx.fillStyle = line.col;
+          ctx.fillText(line.text, bX * CELL_W, (bY + li) * CELL_H);
         });
+        ctx.shadowBlur = 0;
+      }
 
-        // Щит над героем
-        if (hero.shield > 0) {
-          ctx.fillStyle = '#00fff2';
-          ctx.fillText(`[S:${hero.shield}]`, layout.x * CELL_W, (hY - 5) * CELL_H);
-        }
-
-        // HP
-        ctx.fillStyle = hero.curHp < 40 ? '#ef4444' : '#22c55e';
-        ctx.fillText(`${hero.curHp}/${hero.hp}`, layout.x * CELL_W, (hY + 2) * CELL_H);
-      });
-
-      // 4. СПЕЦЭФФЕКТЫ (VFX ДЛЯ КАЖДОГО ТИПА НАВЫКА)
+      // 5. СПЕЦЭФФЕКТЫ (VFX)
       if (activeVfx) {
-        const tX = 72;
-        const tY = 16;
+        const tX = 70;
+        const tY = 14;
         if (activeVfx.type === 'laser') {
           ctx.strokeStyle = '#c084fc';
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(18 * CELL_W, 26 * CELL_H);
+          ctx.moveTo(18 * CELL_W, 25 * CELL_H);
           ctx.lineTo(tX * CELL_W, tY * CELL_H);
           ctx.stroke();
         } else if (activeVfx.type === 'rocket') {
@@ -280,26 +328,20 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         } else if (activeVfx.type === 'log') {
           const curX = 20 + (tX - 20) * activeVfx.progress;
           ctx.fillStyle = '#b45309';
-          ctx.fillText('[||||]', curX * CELL_W, (26 - Math.sin(activeVfx.progress * Math.PI) * 6) * CELL_H);
+          ctx.fillText('[||||]', curX * CELL_W, (25 - Math.sin(activeVfx.progress * Math.PI) * 7) * CELL_H);
         } else if (activeVfx.type === 'runes') {
           ctx.fillStyle = '#39ff14';
           ctx.fillText('⊕ Ω Ж', (20 + (tX - 20) * activeVfx.progress) * CELL_W, tY * CELL_H);
         } else if (activeVfx.type === 'spear') {
           ctx.fillStyle = '#ffffff';
           ctx.fillText('------->+', (20 + (tX - 20) * activeVfx.progress) * CELL_W, tY * CELL_H);
-        } else if (activeVfx.type === 'bomb') {
-          ctx.fillStyle = '#f97316';
-          ctx.fillText('(( БОМБА ))', (20 + (tX - 20) * activeVfx.progress) * CELL_W, tY * CELL_H);
-        } else if (activeVfx.type === 'shield') {
-          ctx.fillStyle = '#00fff2';
-          ctx.fillText('|=== БАРЬЕР ===|', 20 * CELL_W, 25 * CELL_H);
         } else if (activeVfx.type === 'heal') {
           ctx.fillStyle = '#22c55e';
           ctx.fillText('++♥ [ЛЕЧЕНИЕ] ♥++', (16 + activeVfx.progress * 6) * CELL_W, (22 - activeVfx.progress * 4) * CELL_H);
         }
       }
 
-      // 5. ВСПЛЫВАЮЩИЙ УРОН
+      // 6. ВСПЛЫВАЮЩИЙ УРОН
       if (floatingText) {
         ctx.fillStyle = floatingText.col;
         ctx.fillText(floatingText.text, floatingText.x * CELL_W, floatingText.y * CELL_H);
@@ -316,7 +358,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
     <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020010', overflow: 'hidden' }}>
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 
-      {/* ВЕРХНЯЯ СТРОКА: ДАННЫЕ СЕКТОРА */}
+      {/* ВЕРХНЯЯ СТРОКА */}
       <div style={{ position: 'absolute', top: 10, left: 14, right: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
         <div style={{ background: 'rgba(2,0,20,0.85)', border: '1px solid #00fff2', padding: '6px 12px', pointerEvents: 'auto' }}>
           <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '9px', color: '#00fff2' }}>
@@ -329,7 +371,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         </div>
       </div>
 
-      {/* ПАНЕЛЬ СПОСОБНОСТЕЙ В СТИЛЕ ASCII */}
+      {/* ПАНЕЛЬ СПОСОБНОСТЕЙ */}
       {currentTurnUnitId !== 'BOSS' && activeHero && (
         <div style={{ position: 'absolute', top: 50, left: 14, background: 'rgba(2,0,20,0.9)', border: '1px solid #1e293b', padding: '8px 12px', zIndex: 10 }}>
           <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '8px', color: activeHero.color, marginBottom: '6px' }}>
@@ -372,7 +414,6 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
             ))}
           </div>
 
-          {/* СПРАВКА [i] */}
           {inspectedSkill && (
             <div style={{ marginTop: '8px', padding: '6px', border: '1px dashed #f59e0b', fontSize: '10px', color: '#fef08a', maxWidth: '240px' }}>
               {inspectedSkill.desc}
@@ -381,7 +422,7 @@ export const BattleScreen: React.FC<Props> = ({ level, selectedOperatorIds, onBa
         </div>
       )}
 
-      {/* НИЖНЯЯ ПАНЕЛЬ ТАЙМЛАЙНА И КНОПКА [ АТАКА ] */}
+      {/* ТАЙМЛАЙН И [ АТАКА ] */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(2,0,20,0.95)', borderTop: '1px solid #1e293b', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#94a3b8' }}>
           <span style={{ color: '#00fff2' }}>ОЧЕРЕДЬ:</span>
