@@ -7,7 +7,6 @@ export const App: React.FC = () => {
   const [screen, setScreen] = useState<'MENU' | 'CHAR_SELECT' | 'GLOBE'>('MENU');
   const [fadeOpacity, setFadeOpacity] = useState<number>(0);
 
-  // Плавный переход с затемнением в 1 секунду
   const transitionTo = (nextScreen: 'MENU' | 'CHAR_SELECT' | 'GLOBE') => {
     setFadeOpacity(1);
     setTimeout(() => {
@@ -23,7 +22,6 @@ export const App: React.FC = () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-        /* ПРЕДУПРЕЖДЕНИЕ О ПОВОРОТЕ ЭКРАНА */
         .portrait-lock {
           display: none;
         }
@@ -51,7 +49,6 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Затемнение экрана при переходах */}
       <div className="fade-overlay" style={{ opacity: fadeOpacity }} />
 
       {screen === 'MENU' && (
