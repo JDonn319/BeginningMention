@@ -166,7 +166,6 @@ export const STARTER_HEROES: StarterHero[] = [
   }
 ];
 
-// 14 НОД ПЛАНЕТЫ (1 - ПЕЩЕРА, 2-14 - ЗАКРЫТЫ)
 export interface PlanetNode {
   id: number;
   name: string;
