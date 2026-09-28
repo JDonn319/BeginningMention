@@ -35,20 +35,7 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
   const currentArt = breathFrame === 0 ? hero.artBreath1 : hero.artBreath2;
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '100vw',
-      height: '100vh',
-      background: '#020010',
-      color: '#c8f0ff',
-      fontFamily: "'Press Start 2P', monospace",
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '10px 16px',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      userSelect: 'none'
-    }}>
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020010', color: '#c8f0ff', fontFamily: "'Press Start 2P', monospace", display: 'flex', flexDirection: 'column', padding: '10px 16px', boxSizing: 'border-box', overflow: 'hidden', userSelect: 'none' }}>
       
       {/* ВЕРХНИЙ БАР */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e3a8a', paddingBottom: '6px', flexShrink: 0 }}>
@@ -66,31 +53,13 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
       {/* ГОРИЗОНТАЛЬНЫЙ СПЛИТ ПОД ЭКРАН ТЕЛЕФОНА */}
       <div style={{ flex: 1, display: 'flex', gap: '16px', marginTop: '10px', minHeight: 0 }}>
         
-        {/* ЛЕВАЯ КОЛОНКА (45%): ПЕРСОНАЖ, КЛАСС, НАВИГАЦИЯ, КНОПКА ВЫБОРА */}
-        <div style={{
-          flex: '0 0 42%',
-          border: '1px solid #00fff2',
-          background: 'rgba(2, 6, 24, 0.85)',
-          padding: '10px',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
+        {/* ЛЕВАЯ КОЛОНКА (42%): ПЕРСОНАЖ БЕЗ КОЛЕН, КЛАСС, НАВИГАЦИЯ */}
+        <div style={{ flex: '0 0 42%', border: '1px solid #00fff2', background: 'rgba(2, 6, 24, 0.85)', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: '8px', color: '#64748b' }}>
             ОПЕРАТОР {currentIdx + 1} / {STARTER_HEROES.length}
           </div>
 
-          {/* ПРЯМАЯ ФИГУРА ИЗ СИМВОЛОВ (СТРОГО ПО ОСИ) */}
-          <pre style={{
-            margin: '6px 0',
-            fontSize: '18px',
-            lineHeight: 1.15,
-            color: hero.color,
-            textShadow: `0 0 8px ${hero.color}`,
-            textAlign: 'center'
-          }}>
+          <pre style={{ margin: '6px 0', fontSize: '20px', lineHeight: 1.15, color: hero.color, textShadow: `0 0 8px ${hero.color}`, textAlign: 'center' }}>
             {currentArt.join('\n')}
           </pre>
 
@@ -103,7 +72,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
             </div>
           </div>
 
-          {/* НАВИГАЦИЯ ПРЕД / СЛЕД */}
           <div style={{ display: 'flex', gap: '12px', width: '100%', justifyContent: 'center' }}>
             <button
               onClick={() => setCurrentIdx((prev) => (prev > 0 ? prev - 1 : STARTER_HEROES.length - 1))}
@@ -134,19 +102,9 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА (55%): СТАТИСТИКА, СПОСОБНОСТИ С [i], И КНОПКА СТАРТА */}
-        <div style={{
-          flex: 1,
-          border: '1px solid #1e3a8a',
-          background: 'rgba(2, 6, 24, 0.85)',
-          padding: '10px 14px',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between'
-        }}>
+        {/* ПРАВАЯ КОЛОНКА (58%): СТАТИСТИКА, СПОСОБНОСТИ С [i], И КНОПКА СТАРТА */}
+        <div style={{ flex: 1, border: '1px solid #1e3a8a', background: 'rgba(2, 6, 24, 0.85)', padding: '10px 14px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            {/* СТАТИСТИКА */}
             <div style={{ fontSize: '8px', color: '#38bdf8', borderBottom: '1px dashed #1e3a8a', paddingBottom: '4px', marginBottom: '8px' }}>
               ХАРАКТЕРИСТИКИ:
             </div>
@@ -155,7 +113,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
               <div>БРОНЯ: <span style={{ color: '#00fff2' }}>{hero.armor > 0 ? `${hero.armor}` : 'НЕТ'}</span></div>
             </div>
 
-            {/* СПОСОБНОСТИ С [i] */}
             <div style={{ fontSize: '8px', color: '#facc15', borderBottom: '1px dashed #1e3a8a', paddingBottom: '4px', marginBottom: '8px' }}>
               СПОСОБНОСТИ:
             </div>
@@ -176,7 +133,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
             </div>
           </div>
 
-          {/* ВСЕГДА ВИДИМАЯ КНОПКА СТАРТА */}
           <div style={{ borderTop: '1px solid #1e3a8a', paddingTop: '8px' }}>
             <button
               disabled={selectedIds.length !== 4}
@@ -199,7 +155,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
         </div>
       </div>
 
-      {/* ОКНО ИЗ СИМВОЛОВ ПРИ НАЖАТИИ [i] */}
       {modalSkill && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '440px', background: '#020010', border: '2px solid #f59e0b', padding: '18px', boxSizing: 'border-box' }}>
