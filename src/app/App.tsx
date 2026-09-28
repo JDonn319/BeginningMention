@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { MainMenuScreen } from '../screens/MainMenuScreen';
 import { CharacterSelectScreen } from '../screens/CharacterSelectScreen';
 import { PlanetMapScreen } from '../screens/PlanetMapScreen';
-import { CaveBattleScreen } from '../screens/CaveBattleScreen';
+import { BattleScreen } from '../screens/BattleScreen';
+import { LocationScenario } from '../locations/types';
 
 export const App: React.FC = () => {
-  const [screen, setScreen] = useState<'MENU' | 'CHAR_SELECT' | 'GLOBE' | 'CAVE_BATTLE'>('MENU');
+  const [screen, setScreen] = useState<'MENU' | 'CHAR_SELECT' | 'GLOBE' | 'BATTLE'>('MENU');
   const [fadeOpacity, setFadeOpacity] = useState<number>(0);
   const [squadIds, setSquadIds] = useState<string[]>(['josef', 'michael', 'kyle', 'artemis']);
+  const [activeScenario, setActiveScenario] = useState<LocationScenario | null>(null);
 
-  const transitionTo = (nextScreen: 'MENU' | 'CHAR_SELECT' | 'GLOBE' | 'CAVE_BATTLE') => {
+  const transitionTo = (nextScreen: 'MENU' | 'CHAR_SELECT' | 'GLOBE' | 'BATTLE') => {
     setFadeOpacity(1);
     setTimeout(() => {
       setScreen(nextScreen);
@@ -69,20 +71,24 @@ export const App: React.FC = () => {
 
       {screen === 'GLOBE' && (
         <PlanetMapScreen
-          onEnterCave={() => transitionTo('CAVE_BATTLE')}
+          onStartScenario={(scenario) => {
+            setActiveScenario(scenario);
+            transitionTo('BATTLE');
+          }}
           onBackToMenuConfirmed={() => transitionTo('MENU')}
         />
       )}
 
-      {screen === 'CAVE_BATTLE' && (
-        <CaveBattleScreen
+      {screen === 'BATTLE' && activeScenario && (
+        <BattleScreen
+          scenario={activeScenario}
           selectedSquadIds={squadIds}
           onVictory={() => {
-            alert('ПЕЩЕРА ЗАЧИЩЕНА ОТ ОРКОВ!');
+            alert('СЕКТОР УСПЕШНО ЗАЧИЩЕН!');
             transitionTo('GLOBE');
           }}
           onDefeat={() => {
-            alert('ОТРЯД ПОГИБ В ПЕЩЕРЕ...');
+            alert('ОТРЯД ПОГИБ В БОЮ...');
             transitionTo('GLOBE');
           }}
         />
