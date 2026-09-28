@@ -1,12 +1,12 @@
 // ========================================================
-// МОДЕЛИ: КРУПНЫЕ ГЕРОИ И ОРКИ (БЕЗ КОЛЕН, НОГИ СРАЗУ L L)
+// БИБЛИОТЕКА МОДЕЛЕЙ, ОРУЖИЯ, ОРКОВ И ПЛАНЕТЫ
 // ========================================================
 
 export interface HeroSkill {
   id: string;
   name: string;
   desc: string;
-  category: 'ATTACK' | 'AOE' | 'HEAL' | 'WALL';
+  category: 'ATTACK' | 'AOE' | 'HEAL_ALL' | 'WALL';
   trajectory: 'LINE' | 'PARABOLA' | 'NONE';
   ammoCost: number;
 }
@@ -26,6 +26,7 @@ export interface StarterHero {
   skills: [HeroSkill, HeroSkill];
 }
 
+// 6 ГЕРОЕВ: БЕЗ КОЛЕН, НОГИ СРАЗУ L L, РОВНО ПО ОСИ
 export const STARTER_HEROES: StarterHero[] = [
   {
     id: 'josef',
@@ -52,8 +53,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'impulse', name: 'Impulse (basic)', desc: 'Прямой лазерный импульс. Голова: 20 крит, Тело: 11-15, Ноги: 6-10.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 1 },
-      { id: 'loaded', name: 'Loaded Blast', desc: 'Навесная фиолетовая бомба с радиусом поражения. Наносит 28-34 урона по всем оркам в радиусе взрыва!', category: 'AOE', trajectory: 'PARABOLA', ammoCost: 2 }
+      { id: 'impulse', name: 'Impulse (basic)', desc: 'Неоновый луч. Голова: 20 крит, Тело: 11-15, Ноги: 6-10.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 1 },
+      { id: 'loaded', name: 'Loaded Blast', desc: 'Навесная фиолетовая бомба (@@@). Урон 28-34 по всем оркам в радиусе взрыва!', category: 'AOE', trajectory: 'PARABOLA', ammoCost: 2 }
     ]
   },
   {
@@ -81,8 +82,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'log', name: 'Бросок Бревна', desc: 'Вращающееся по высокой дуге бревно. Голова: 26-29 урона, Тело: 8-14 урона.', category: 'ATTACK', trajectory: 'PARABOLA', ammoCost: 0 },
-      { id: 'wall', name: 'Стена-Щит', desc: 'Возводит деревянный щит перед выбранным союзником на 1 ход.', category: 'WALL', trajectory: 'NONE', ammoCost: 0 }
+      { id: 'log', name: 'Бросок Бревна', desc: 'Вращающееся тяжелое бревно [|||||]. Голова: 26-29, Тело: 8-14.', category: 'ATTACK', trajectory: 'PARABOLA', ammoCost: 0 },
+      { id: 'wall', name: 'Стена-Щит', desc: 'Возводит барьер |===| перед союзником на 1 ход.', category: 'WALL', trajectory: 'NONE', ammoCost: 0 }
     ]
   },
   {
@@ -110,8 +111,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'runes', name: 'Атака Рунами', desc: 'Веер из 3 парящих рун. Наносит 18-24 урона цели.', category: 'ATTACK', trajectory: 'PARABOLA', ammoCost: 0 },
-      { id: 'silence', name: 'Запрет Чар', desc: 'Блокирует метание камней у выбранного орка на 1 ход.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 0 }
+      { id: 'runes', name: 'Атака Рунами', desc: 'Веер из светящихся рун [ ⊕ ] [ Ω ] [ Ж ]. 18-24 урона.', category: 'ATTACK', trajectory: 'PARABOLA', ammoCost: 0 },
+      { id: 'heal_team', name: 'Руна Жизни', desc: 'Массовое исцеление: восстанавливает 35 HP ВСЕМУ отряду!', category: 'HEAL_ALL', trajectory: 'NONE', ammoCost: 0 }
     ]
   },
   {
@@ -138,8 +139,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'heal', name: 'Инъекция Жизни', desc: 'Восстанавливает 40% HP выбранному союзнику (клик по союзнику).', category: 'HEAL', trajectory: 'NONE', ammoCost: 1 },
-      { id: 'revive', name: 'Реанимация', desc: 'Воскрешает павшего союзника или лечит на 50% HP.', category: 'HEAL', trajectory: 'NONE', ammoCost: 2 }
+      { id: 'team_heal', name: 'Святое Сияние', desc: 'Массовый впрыск нанитов: лечит ВСЮ команду на 40% HP!', category: 'HEAL_ALL', trajectory: 'NONE', ammoCost: 1 },
+      { id: 'revive', name: 'Реанимация', desc: 'Воскрешает павших бойцов с 50% HP.', category: 'HEAL_ALL', trajectory: 'NONE', ammoCost: 2 }
     ]
   },
   {
@@ -166,8 +167,8 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'spear', name: 'Бросок Копья', desc: 'Урон растет от дистанции: от 6 в упор до 38 с задней линии.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 1 },
-      { id: 'bomb', name: 'Огненная Бомба', desc: 'Зажигательная бомба навесом. Взрыв по площади и горение на 2 хода.', category: 'AOE', trajectory: 'PARABOLA', ammoCost: 1 }
+      { id: 'spear', name: 'Бросок Копья', desc: 'Световое копье <<==>>==+. Урон от 6 в упор до 38 с задней линии.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 1 },
+      { id: 'bomb', name: 'Огненная Бомба', desc: 'Зажигательная бомба по площади с взрывной волной.', category: 'AOE', trajectory: 'PARABOLA', ammoCost: 1 }
     ]
   },
   {
@@ -195,24 +196,29 @@ export const STARTER_HEROES: StarterHero[] = [
       '   L L   '
     ],
     skills: [
-      { id: 'smite', name: 'Солнечный Разрез', desc: 'Плазменный выпад меча на 26 урона.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 0 },
-      { id: 'aegis', name: 'Аура Солнца', desc: 'Принимает удары по отряду на себя.', category: 'WALL', trajectory: 'NONE', ammoCost: 0 }
+      { id: 'smite', name: 'Солнечный Разрез', desc: 'Светящийся плазменный выпад на 26 урона.', category: 'ATTACK', trajectory: 'LINE', ammoCost: 0 },
+      { id: 'aegis', name: 'Аура Солнца', desc: 'Принимает удары орков по союзникам на себя.', category: 'WALL', trajectory: 'NONE', ammoCost: 0 }
     ]
   }
 ];
 
-// МОДЕЛИ ОРКА: ПОКОЙ И ПРИЦЕЛИВАНИЕ С КАМНЕМ
+// НОВАЯ МОДЕЛЬ ОРКА: С КОПЬЕМ ||, РУКОЙ ooO И АНИМАЦИЕЙ ЗАМАХА
 export const ORC_MODEL = {
   color: '#84cc16',
+  spearChar: '<<--->',
+  // Покой: копье в руке вертикально
   artIdle: [
-    '   O   ',
-    ' -{#}- ',
-    '  I I  '
+    '       (О)         || ',
+    ' @[#####]@ooO         ',
+    '  (|   [@@]        || ',
+    '    II   II        V  '
   ],
+  // Замах: рука ooO поднимает копье вверх
   artAiming: [
-    '  (O)  ', // Поднял камень над головой
-    ' \\{#}/ ',
-    '  I I  '
+    '       (О)     /==\\>  ',
+    ' @[#####]@ooO //      ',
+    '  (|   [@@]           ',
+    '    II   II           '
   ]
 };
 
