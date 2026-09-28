@@ -15,7 +15,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
   const hero = STARTER_HEROES[currentIdx];
   const isSelected = selectedIds.includes(hero.id);
 
-  // Анимация дыхания героя на месте (ноги стоят, корпус покачивается)
   useEffect(() => {
     const timer = setInterval(() => {
       setBreathFrame((prev) => (prev === 0 ? 1 : 0));
@@ -51,13 +50,10 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
         </button>
       </div>
 
-      {/* ЦЕНТРАЛЬНЫЙ БЛОК: СВЕРХУ ДЫШАЩИЙ ГЕРОЙ, СНИЗУ СТАТИСТИКА */}
+      {/* КАРТОЧКА ГЕРОЯ: СВЕРХУ ДЫШАЩИЙ ГЕРОЙ, СНИЗУ СТАТЫ И НАВЫКИ С [i] */}
       <div style={{ width: '100%', maxWidth: '860px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-        
-        {/* КАРТОЧКА ГЕРОЯ В СТИЛЕ ASCII */}
         <div style={{ width: '100%', maxWidth: '640px', border: '1px solid #00fff2', padding: '14px', background: 'rgba(2, 6, 24, 0.85)', boxShadow: '0 0 15px rgba(0,255,242,0.1)' }}>
           
-          {/* СВЕРХУ: СТОЯЩИЙ ДЫШАЩИЙ ГЕРОЙ */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '10px' }}>
             <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '6px' }}>
               ОПЕРАТОР {currentIdx + 1} / {STARTER_HEROES.length}
@@ -73,13 +69,11 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
             </div>
           </div>
 
-          {/* СНИЗУ: СТАТИСТИКА */}
           <div style={{ borderTop: '1px dashed #1e3a8a', paddingTop: '10px', display: 'flex', justifyContent: 'space-around', fontSize: '9px', color: '#94a3b8' }}>
             <div>ЗДОРОВЬЕ: <span style={{ color: '#39ff14' }}>{hero.hp} HP</span></div>
             <div>БРОНЯ / ЩИТ: <span style={{ color: '#00fff2' }}>{hero.armor > 0 ? `${hero.armor} SHD` : 'НЕТ'}</span></div>
           </div>
 
-          {/* СПОСОБНОСТИ С КНОПКОЙ [i] */}
           <div style={{ borderTop: '1px dashed #1e3a8a', marginTop: '10px', paddingTop: '10px' }}>
             <div style={{ fontSize: '8px', color: '#facc15', marginBottom: '8px' }}>
               УНИКАЛЬНЫЕ СПОСОБНОСТИ:
@@ -101,7 +95,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
             </div>
           </div>
 
-          {/* КНОПКА ВЫБОРА В ОТРЯД */}
           <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'center' }}>
             <button
               onClick={handleToggleSelect}
@@ -120,7 +113,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
           </div>
         </div>
 
-        {/* НАВИГАЦИЯ ПРЕД / СЛЕД */}
         <div style={{ display: 'flex', gap: '20px' }}>
           <button
             onClick={() => setCurrentIdx((prev) => (prev > 0 ? prev - 1 : STARTER_HEROES.length - 1))}
@@ -137,7 +129,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
         </div>
       </div>
 
-      {/* НИЖНЯЯ ПАНЕЛЬ ПОДТВЕРЖДЕНИЯ ОТРЯДА */}
       <div style={{ width: '100%', maxWidth: '860px', display: 'flex', justifyContent: 'center', borderTop: '1px solid #1e3a8a', paddingTop: '10px' }}>
         <button
           disabled={selectedIds.length !== 4}
@@ -156,7 +147,6 @@ export const CharacterSelectScreen: React.FC<Props> = ({ onSquadConfirmed, onExi
         </button>
       </div>
 
-      {/* ОКНО ИЗ СИМВОЛОВ ПРИ НАЖАТИИ [i] */}
       {modalSkill && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '440px', background: '#020010', border: '2px solid #f59e0b', padding: '18px', boxSizing: 'border-box' }}>
