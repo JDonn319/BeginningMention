@@ -38,7 +38,6 @@ export const MainMenuScreen: React.FC<Props> = ({ onStartNewGame }) => {
       ctx.font = `${Math.floor(CELL_H * 0.95)}px monospace`;
       ctx.textBaseline = 'top';
 
-      // Небо и мерцающие звезды
       for (let r = 0; r < 20; r++) {
         for (let c = 0; c < 100; c += 2) {
           if ((c * 23 + r * 67) % 100 < 4) {
@@ -48,20 +47,17 @@ export const MainMenuScreen: React.FC<Props> = ({ onStartNewGame }) => {
         }
       }
 
-      // Луна
       ctx.fillStyle = '#e0f2fe';
       ['  .---.  ', ' /     \\ ', '|  (o)  |', ' \\     / ', "  '---'  "].forEach((l, i) => {
         ctx.fillText(l, 86 * CELL_W, (3 + i) * CELL_H);
       });
 
-      // Дальние ели
       for (let c = 4; c < 94; c += 16) {
         const tree = TREE_TEMPLATES[c % 2];
         ctx.fillStyle = '#0b192e';
         tree.forEach((line, li) => ctx.fillText(line, c * CELL_W, (21 - tree.length + li) * CELL_H));
       }
 
-      // Синеватый рельеф земли из символов
       for (let c = 0; c < 100; c++) {
         const gStart = Math.floor(21 + Math.sin(c * 0.1) * 2);
         for (let r = gStart; r < 42; r++) {
